@@ -1,0 +1,37 @@
+{
+  "manifest_version": 2,
+  "name": "snap4mbot",
+  "version": "0.3",
+  "minimum_chrome_version": "23",
+  "icons": {
+    "128": "icons/snap4mbot128x128.png",
+    "48": "icons/snap4mbot48x48.png",
+    "16": "icons/snap4mbot16x16.png"
+  },
+  "permissions": [ 
+      "serial", 
+      "storage",
+      "unlimitedStorage",
+      "http://*/",
+      "https://*/",
+      "*://*/",
+      "tts",
+      "notifications"      
+   ],
+   "sandbox": {
+      "pages": [ "snap4mbot.html" ]
+   },
+   "sockets": {
+      "tcp": {
+         "connect": "*:*"
+      }
+   },
+  "app": {
+    "background": {
+      "scripts": ["startup.js"],
+      "persistent": false   
+     }
+  }
+}
+
+

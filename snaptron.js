@@ -1,16 +1,43 @@
 
-// hey stupid, don't use globals, mkay?
+var ElectronBotController = require('./ebot').ElectronBot;
 
-'use strict'
+var allbots = {};
+
+var botPort = "COM5";
+var ElectronBots = {};
+ElectronBots[ botPort ] = new ElectronBotController( botPort , './mbot.js') ;
+ElectronBots[ botPort ].connect();
+ElectronBots[ botPort ].on('disconnected', function(){
+    console.log("disconnected");
+    console.log("reconnecting in 5s...");
+    setTimeout( function(){
+        console.log("reconnecting NOW!");
+        ElectronBots[ botPort ].connect();
+    }, 5000);    
+});
+
+/*
+var serialport = require("serialport");
+serialport.list(function (err, ports) {
+    if(err){ console.log("Error listing serial ports: " + err ); return ;}
+    ports.forEach( function( port ) {
+    console.log(port.comName);
+    console.log(port.pnpId);
+    console.log(port.manufacturer);
+  });
+});
+*/
+
 
 const SETTINGS_STORAGE_ID = 'settings';
 const USER_SETTINGS_FILENAME = '.snaptron';
 
+// hey stupid, don't use globals, mkay?
 if (typeof localStorage === "undefined" || localStorage === null) {
-  var LocalStorage = require('node-localstorage').LocalStorage;
-  var userSettingsFile = os.homedir() + '/' + USER_SETTINGS_FILENAME;
-  localStorage = new LocalStorage(userSettingsFile);
-  log('User settings loaded from: "'+userSettingsFile+'"');
+    var LocalStorage = require('node-localstorage').LocalStorage;
+    var userSettingsFile = os.homedir() + '/' + USER_SETTINGS_FILENAME;
+    localStorage = new LocalStorage(userSettingsFile);
+    log('User settings loaded from: "'+userSettingsFile+'"');
 }
 
 var tempStorage = JSON.parse( localStorage.getItem( SETTINGS_STORAGE_ID ));
@@ -18,15 +45,15 @@ if( !tempStorage ){ tempStorage = {}; }
 ( tempStorage[ '-snap-setting-design' ]  ? "" : tempStorage[ '-snap-setting-design' ] =  'flat' );
 ( tempStorage[ '-snap-setting-language'] ? "" : tempStorage[ '-snap-setting-language'] =  'pt' );
 
-
-
 var world = new WorldMorph(document.getElementById('world'));
 world.worldCanvas.focus();
 
 var ide_morph = new IDE_Morph();
 ide_morph.openIn(world);
+overrideSnapFunctions();
 loop();  
-      
+
+function startSnap4mbot(){}
 
 
 
@@ -93,9 +120,9 @@ function log( text, type){
 */
 
         IDE_Morph.prototype.connectMbot = function () {
-            if( !mBotResetOngoing ){
+            //if( !mBotResetOngoing ){
                 startSnap4mbot();   
-            }
+            //}
         };
 
         IDE_Morph.prototype.serialSelectMenu = function () {

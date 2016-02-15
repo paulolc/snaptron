@@ -169,30 +169,63 @@ function ElectronBotSlave(){
 util.inherits(ElectronBotSlave, EventEmitter);
 
 
-function ElectronBotController( ebotjsfile ){
-    this.jsfile = ebotjsfile;
+var ElectronBots = {
+
+    ebots: {},
+
+    loadBots: function( jsfile, callback ){        
+        this.ebots = {};
+        var these = this;
+
+        serialport.list(function (err, ports) {
+            if(err){ console.log("Error listing serial ports: " + err ); return ;}
+            var portsRemaining = ports.map( function( elem, idx, remaining){
+                return elem.comName;                
+            });
+                        
+            ports.forEach( createElectronBot );
+            these.ebots[ portsRemaining.pop() ].connect();
+            
+            
+            function createElectronBot( port ) {
+                var portPath = port.comName;
+                var electronBot = these.ebots[ portPath ] || new ElectronBot( portPath, jsfile );
+                these.ebots[ portPath ] = electronBot;
+                
+                electronBot.once('ready', function(){ 
+                    these.ebots[ portPath ].removeAllListeners('disconnected');
+                    returnIfLastPort(); 
+                });
+                                
+                electronBot.once('disconnected', function(){ 
+                    delete these.ebots[ portPath ];
+                    returnIfLastPort(); 
+                });
+                                
+                //console.log(port.comName);
+                //console.log(port.pnpId);
+                //console.log(port.manufacturer);
+            }
+            
+            
+            function returnIfLastPort(){           
+                if( ! portsRemaining ){ return }     
+                if( portsRemaining.length === 0 ){
+                    portsRemaining = null;
+                    callback( these.ebots );
+                } else {
+                    these.ebots[ portsRemaining.pop() ].connect();
+                }
+            }        
+                        
+        });    
+    }
+
 }
-
-
-function scan(){
-    serialport.list(function (err, ports) {
-        if(err){ console.log("Error listing serial ports: " + err ); return ;}
-        ports.forEach( function( port ) {
-            var electronBot = new 
-            console.log(port.comName);
-            console.log(port.pnpId);
-            console.log(port.manufacturer);
-        });
-    });    
-}
-
-
 
 ebot = new ElectronBotSlave();
 //ebot.ElectronBot = ElectronBot;
 
 
-module.exports = {
-    ElectronBot: ElectronBot
-};
+module.exports = ElectronBots;
 

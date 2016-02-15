@@ -38,8 +38,4 @@
             mainWindow = null;
         });
 
-
-
-
-
     });

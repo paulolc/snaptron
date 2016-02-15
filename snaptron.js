@@ -1,11 +1,12 @@
-
+/*
 var ElectronBotController = require('./ebot').ElectronBot;
 
 var allbots = {};
 
 var botPort = "COM5";
 var ElectronBots = {};
-ElectronBots[ botPort ] = new ElectronBotController( botPort , './mbot.js') ;
+//ElectronBots[ botPort ] = new ElectronBotController( botPort , './mbot.js') ;
+ElectronBots[ botPort ] = new ElectronBotController( botPort , null ) ;
 ElectronBots[ botPort ].connect();
 ElectronBots[ botPort ].on('disconnected', function(){
     console.log("disconnected");
@@ -15,6 +16,22 @@ ElectronBots[ botPort ].on('disconnected', function(){
         ElectronBots[ botPort ].connect();
     }, 5000);    
 });
+
+
+
+*/
+
+var ebot = require('./ebot');
+var ebots;
+
+ebot.loadBots( "./mbot.js" , function( readyEbots ) {
+    ebots = readyEbots;
+    console.log(Object.keys( ebots ));
+});
+
+// serial ports found with connected bots
+// Object.keys(ebots);
+
 
 /*
 var serialport = require("serialport");

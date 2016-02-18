@@ -6,12 +6,14 @@ const ipcMain = remote.ipcMain;
 const EventEmitter = require('events');
 const ipcRenderer = require('electron').ipcRenderer;
 const five = require("johnny-five");
+const fs = require('fs');
+
+const SERIAL_PROBE_TIMEOUT_IN_MS = 10000;
+const FIRMATA_GETVERSION_CMD = 0xF9;
+const BOARD_WATCHDOG_INTERVAL_IN_MS = 2000;
 
 var serialport = require("serialport");
 var SerialPort = serialport.SerialPort;
-const fs = require('fs');
-
-var SerialPort = require("serialport").SerialPort;
 
 function ElectronBot( port , jsfile ){
     EventEmitter.call(this);
@@ -115,12 +117,129 @@ function ElectronBotSlave(){
 
     var error = null;
     var myId;
+    var startTime = new Date().getTime();
 
 
     ipcRenderer.on('connect', function(event, id, portname) {
         
         myId = id;   
-        port = new SerialPort( portname );
+        var port = new SerialPort( portname ); 
+        var buffer = null;
+                
+        connectToBoardIfFound()                
+                              
+        function connectToBoardIfFound(){            
+            port.once('open', function(){ 
+                port.write(new Buffer([FIRMATA_GETVERSION_CMD]));
+            });
+            
+            port.once('data', function( data ){
+                buffer = data;
+                if( data.length !== 3 || data[0] !== FIRMATA_GETVERSION_CMD ){
+                    reportBoardNotFound();                            
+                } else {            
+                    connectBoard();            
+                }
+            });
+
+            setTimeout(function(){ 
+                if(buffer === null){ reportBoardNotFound() }
+            },SERIAL_PROBE_TIMEOUT_IN_MS);
+    
+            port.once('error', function(err){ 
+                reportBoardNotFound();
+            });
+            
+            function reportBoardNotFound(){                
+                event.sender.send( myId, 'board-failure', new Error('Board not found on serial port ' + portname) );            
+            }
+            
+        }
+
+        function connectBoard(){
+            
+            ebot.board = new five.Board( { port: port } );    
+
+            ebot.board.on("error", function( err ) {
+                console.log("error: " + util.inspect(err) );
+                if( error === null ){
+                    error = err;
+                    event.sender.send( myId, 'board-failure', err );            
+                }
+            });
+
+            ebot.board.on("ready", function() {
+                setTimeout( checkPortOpened, BOARD_WATCHDOG_INTERVAL_IN_MS, port);
+                boardPing = setInterval(function pingBoard(){
+                    ebot.board.queryPinState(1, function(value) {
+                        currTick++;            
+                    });
+                }, 1000);
+
+
+                ipcRenderer.on('command', function( event, data) {                
+                    ebot.emit('command', data.command, data.parameters);
+                });
+
+                event.sender.send( myId, 'board-ready' );            
+                ebot.emit('ready');
+
+            });
+        }
+
+    });
+
+/*
+        //port = new SerialPort( portname );
+        var sport = new SerialPort( portname ); //, {}, false );
+        var data = null;
+        var tstamp = new Date().getTime();
+  
+        var SERIAL_PROBE_TIMEOUT_IN_MS = 10000;
+        setTimeout(function(){ 
+            if(data ===null){ 
+                console.log('Board not present on this serial port (setTimeout)');
+                event.sender.send( myId, 'board-failure', new Error('Board not present on this serial port.') );            
+            }
+        },SERIAL_PROBE_TIMEOUT_IN_MS);
+  
+        sport.once('error', function(err){ 
+            console.log(portname + ": ERROR :" + err );
+            event.sender.send( myId, 'board-failure', err );            
+        });
+        
+        sport.once('open', function(){ 
+            sport.write(new Buffer([0xF9]));
+        });
+        
+        sport.once('data', function( buffer ){
+            var i;
+            var msg = '';
+            data = buffer;
+            
+            for( i = 0 ; i < data.length ; i++ ){
+                msg += '0x' + data[i].toString(16).toUpperCase() + ' ';
+            }
+            
+            var duration = new Date().getTime() - tstamp;
+            
+            console.log(portname + ': data received (n='+data.length+'): ' + msg  + ' in ' + duration + ' ms');
+            
+            if( data.length !== 3 || data[0] !== 0xF9 ){
+                console.log('Board not present on this serial port.KILL ME!! ');
+                event.sender.send( myId, 'board-failure', new Error('Board not present on this serial port.') );                            
+            } else {            
+                event.sender.send( myId, 'board-ready' );            
+            }
+        });
+
+        
+*/
+  
+        //sport.open();
+        
+        /*
+        
         ebot.board = new five.Board( { port: port } );    
 
         ebot.board.on("error", function( err ) {
@@ -151,6 +270,8 @@ function ElectronBotSlave(){
         });
 
     });
+*/
+
 
     function checkPortOpened( port ) {
         if( currTick == lastTick ){
@@ -178,14 +299,9 @@ var ElectronBots = {
         var these = this;
 
         serialport.list(function (err, ports) {
-            if(err){ console.log("Error listing serial ports: " + err ); return ;}
-            var portsRemaining = ports.map( function( elem, idx, remaining){
-                return elem.comName;                
-            });
-                        
+            if(err){ console.log("Error listing serial ports: " + err ); return ;}           
+            var portsCount = ports.length;                                                            
             ports.forEach( createElectronBot );
-            these.ebots[ portsRemaining.pop() ].connect();
-            
             
             function createElectronBot( port ) {
                 var portPath = port.comName;
@@ -198,34 +314,28 @@ var ElectronBots = {
                 });
                                 
                 electronBot.once('disconnected', function(){ 
+                    console.log('electronBot disconnected on port ' + portPath );
                     delete these.ebots[ portPath ];
                     returnIfLastPort(); 
                 });
-                                
-                //console.log(port.comName);
-                //console.log(port.pnpId);
-                //console.log(port.manufacturer);
+                
+                electronBot.connect(); //A1
             }
             
-            
-            function returnIfLastPort(){           
-                if( ! portsRemaining ){ return }     
-                if( portsRemaining.length === 0 ){
-                    portsRemaining = null;
+            function returnIfLastPort(){ 
+                portsCount--;
+                console.log( 'portsCount: '+ portsCount);
+                if( portsCount === 0 ){
                     callback( these.ebots );
-                } else {
-                    these.ebots[ portsRemaining.pop() ].connect();
-                }
+                } 
             }        
-                        
+            
         });    
     }
 
 }
 
 ebot = new ElectronBotSlave();
-//ebot.ElectronBot = ElectronBot;
-
 
 module.exports = ElectronBots;
 

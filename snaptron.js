@@ -1,25 +1,3 @@
-/*
-var ElectronBotController = require('./ebot').ElectronBot;
-
-var allbots = {};
-
-var botPort = "COM5";
-var ElectronBots = {};
-//ElectronBots[ botPort ] = new ElectronBotController( botPort , './mbot.js') ;
-ElectronBots[ botPort ] = new ElectronBotController( botPort , null ) ;
-ElectronBots[ botPort ].connect();
-ElectronBots[ botPort ].on('disconnected', function(){
-    console.log("disconnected");
-    console.log("reconnecting in 5s...");
-    setTimeout( function(){
-        console.log("reconnecting NOW!");
-        ElectronBots[ botPort ].connect();
-    }, 5000);    
-});
-
-
-
-*/
 
 var ebot = require('./ebot');
 var ebots;
@@ -29,21 +7,7 @@ ebot.loadBots( "./mbot.js" , function( readyEbots ) {
     console.log(Object.keys( ebots ));
 });
 
-// serial ports found with connected bots
-// Object.keys(ebots);
 
-
-/*
-var serialport = require("serialport");
-serialport.list(function (err, ports) {
-    if(err){ console.log("Error listing serial ports: " + err ); return ;}
-    ports.forEach( function( port ) {
-    console.log(port.comName);
-    console.log(port.pnpId);
-    console.log(port.manufacturer);
-  });
-});
-*/
 
 
 const SETTINGS_STORAGE_ID = 'settings';

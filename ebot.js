@@ -3,6 +3,7 @@ const remote = require('electron').remote;
 const BrowserWindow = remote.BrowserWindow;
 const ElectronBotProcess = BrowserWindow;
 const ipcMain = remote.ipcMain;
+const DEBUG = ipcMain.DEBUG;
 const EventEmitter = require('events');
 const ipcRenderer = require('electron').ipcRenderer;
 const five = require("johnny-five");
@@ -39,6 +40,8 @@ function ElectronBot( port , jsfile ){
                 break;
             case 'board-ready':
                 thisBot.ready = true;
+                console.log('ebot emitted ready!');
+
                 thisBot.emit('ready');
                 break;
             default:
@@ -68,11 +71,13 @@ function ElectronBot( port , jsfile ){
     }
 
     function forkBot( jsfile ){
-        thisBot.process = new ElectronBotProcess( {width: 800, height: 600} );
+        thisBot.process = new ElectronBotProcess( {width: 800, height: 600, show: false } );
         thisBot.process.loadURL('file://' + __dirname + '/ebot.html');                        
         runJsOnBotProcess(jsfile);
-
-        thisBot.process.webContents.openDevTools();
+        
+        if( DEBUG ){
+            thisBot.process.webContents.openDevTools();
+        }
         thisBot.dispatcher = thisBot.process.webContents;
 
         thisBot.process.on('closed', function() {
@@ -82,7 +87,8 @@ function ElectronBot( port , jsfile ){
             thisBot.emit('disconnected');
             if( thisBot.reconnect ){
                 console.log("reconnecting in 3s...");
-                setTimeout( thisBot.connect, 3000 );
+                thisBot.emit('reconnecting');                
+                setTimeout( thisBot.connect, 5000 );
             }                
         });        
 
@@ -210,7 +216,7 @@ function ElectronBots(){
     this.ebots = {};
 
     this.loadBots = function( jsfile, callback ){        
-        this.ebots = {};
+        //this.ebots = {};
         var these = this;
 
         serialport.list(function (err, ports) {
@@ -221,9 +227,12 @@ function ElectronBots(){
             
             function createElectronBot( port ) {
                 var portPath = port.comName;
-                var electronBot = these.ebots[ portPath ] || new ElectronBot( portPath, jsfile );
-                these.ebots[ portPath ] = electronBot;
                 
+                if( ! these.ebots[ portPath ] ) {
+                     these.ebots[ portPath ] = new ElectronBot( portPath, jsfile );
+                }
+                var electronBot = these.ebots[ portPath ]
+
                 electronBot.once('ready', function(){ 
                     these.ebots[ portPath ].removeAllListeners('disconnected');
                     these.emit('ebot-ready', these.ebots[ portPath ]);
@@ -232,14 +241,11 @@ function ElectronBots(){
                                 
                 electronBot.once('disconnected', function(){ 
                     console.log('electronBot disconnected on port ' + portPath );
-
-                    //DEBUG ONLY - DELETE NEXT LINE ASAP
                     these.emit('ebot-disconnected', these.ebots[ portPath ]);
-                    // delete these.ebots[ portPath ];
                     returnIfLastPort(); 
                 });
                 
-                electronBot.connect(); //A1
+                electronBot.connect(); 
             }
             
             function returnIfLastPort(){ 
@@ -256,55 +262,6 @@ function ElectronBots(){
 
 }
 util.inherits(ElectronBots, EventEmitter);
-
-
-
-/*
-var ElectronBots = {
-
-    ebots: {},
-
-    loadBots: function( jsfile, callback ){        
-        this.ebots = {};
-        var these = this;
-
-        serialport.list(function (err, ports) {
-            if(err){ console.log("Error listing serial ports: " + err ); return ;}           
-            var portsCount = ports.length;                                                            
-            ports.forEach( createElectronBot );
-            
-            function createElectronBot( port ) {
-                var portPath = port.comName;
-                var electronBot = these.ebots[ portPath ] || new ElectronBot( portPath, jsfile );
-                these.ebots[ portPath ] = electronBot;
-                
-                electronBot.once('ready', function(){ 
-                    these.ebots[ portPath ].removeAllListeners('disconnected');
-                    returnIfLastPort(); 
-                });
-                                
-                electronBot.once('disconnected', function(){ 
-                    console.log('electronBot disconnected on port ' + portPath );
-                    delete these.ebots[ portPath ];
-                    returnIfLastPort(); 
-                });
-                
-                electronBot.connect(); //A1
-            }
-            
-            function returnIfLastPort(){ 
-                portsCount--;
-                console.log( 'portsCount: '+ portsCount);
-                if( portsCount === 0 ){
-                    callback( these.ebots );
-                } 
-            }        
-            
-        });    
-    }
-}
-*/
-
 
 ebot = new ElectronBotSlave();
 

@@ -1,1 +1,1 @@
-It's snap, the visual, blocks based programming language for nodebots.
+It's snap, the visual, blocks based programming language stuffed in electron to control mBots.

@@ -31,7 +31,7 @@ var ide_morph = new IDE_Morph();
 
 ebot.on('ebot-ready', function( ebotReady ){
    console.log( 'got ebot-ready: ' + ebotReady.port );
-   ide_morph.addNewEbotSprite( ebotReady );
+   ide_morph.addSpriteForEbot( ebotReady );
 });
 
 
@@ -69,9 +69,20 @@ function log( text, type){
 
 function overrideSnapFunctions(){
     
-    var snapSavedOpenProjectFunction = SnapSerializer.prototype.openProject;
+    var overridenOpenProjectFunction = SnapSerializer.prototype.openProject;
+       
+    
     SnapSerializer.prototype.openProject = function( project, ide ){
-        snapSavedOpenProjectFunction( project, ide);
+        overridenOpenProjectFunction( project, ide);
+
+        for( var i = 1; i <= ide.sprites.length(); i++){
+            var currSprite = ide.sprites.at(i);
+            var currSpriteEbotPort = currSprite.variables.vars['ebot-port'];
+            if( currSpriteEbotPort ){
+                ide.serialports[ currSpriteEbotPort ].sprite = currSprite;
+            }
+        }
+        
         console.log( 'Project Opened!');
     }
     
@@ -79,6 +90,10 @@ function overrideSnapFunctions(){
     IDE_Morph.prototype.connectMbot = function () {
         var msg;
         var thisIdeMorph = this;
+        if( ! thisIdeMorph.serialports ){
+            thisIdeMorph.serialports = {};
+        }
+        
         if( ! this.ebotsLoading ){                
             this.ebotsLoading = true;
             msg = thisIdeMorph.showMessage('Searching for connected bots');
@@ -90,16 +105,147 @@ function overrideSnapFunctions(){
             });
         }
     };
-
-    IDE_Morph.prototype.addNewEbotSprite = function ( bot ) {
+        
+    function dressUpEbotForStatusChanges( ebot, sprite ){
+            ebot.reconnect = true;
+            ebot.on('ready',function(){
+                console.log('sprite ebot received ready!');
+                sprite.wearCostume( MBOT_STATUS_COSTUMES_IMAGES[ "connected" ].costume );                
+            });        
+            ebot.on('disconnected',function(){
+                sprite.wearCostume( MBOT_STATUS_COSTUMES_IMAGES[ "disconnected" ].costume );                
+            });
+            ebot.on('reconnecting',function(){
+                sprite.wearCostume( MBOT_STATUS_COSTUMES_IMAGES[ "reconnecting" ].costume );                
+            });
+    }
+    
+    IDE_Morph.prototype.loadCostumesImagesNotYetLoaded = function(mbotCostumeImgs, callback ){
         var thisIdeMorph = this;
+
+        var mbotCostumeImgKeys = Object.keys( mbotCostumeImgs );
+        var totalStatusImgs = mbotCostumeImgKeys.length ;
+        var loadedImgsCount = 0;
+        var mbotCostumeImgFile = null;
+
+        mbotCostumeImgKeys.forEach( function( mbotCostumeImgKey ){
+            
+            var costumeImg = mbotCostumeImgs[ mbotCostumeImgKey ];
+            if( ! costumeImg.canvas ){
+                mbotCostumeImgFile = costumeImg.filename;
+                thisIdeMorph.loadImg( thisIdeMorph.resourceURL( MBOT_DIR, mbotCostumeImgFile ), function( mbotCostumeCanvas ){
+                    costumeImg.canvas = mbotCostumeCanvas; 
+                    loadedImgsCount++;                   
+                    returnWhenAllImagesLoaded(callback);   
+                });                
+            } else {
+                loadedImgsCount++;                   
+                returnWhenAllImagesLoaded( callback );
+            }
+            
+            function returnWhenAllImagesLoaded(cb){
+                if( totalStatusImgs === loadedImgsCount ){ 
+                    cb(); 
+                }
+            }                    
+        });
+        
+    }
+    
+    
+    IDE_Morph.prototype.loadEbotStatusCostumes = function( sprite, callback ){
+        var thisIdeMorph = this;
+        thisIdeMorph.loadCostumesImagesNotYetLoaded( MBOT_STATUS_COSTUMES_IMAGES, function(){
+                thisIdeMorph.hasChangedMedia = true;                                   
+                var ebotStatuses = Object.keys( MBOT_STATUS_COSTUMES_IMAGES );
+                    
+                ebotStatuses.forEach( function addCostume( ebotStatus ){
+                    var ebotCostumeImg = MBOT_STATUS_COSTUMES_IMAGES[ ebotStatus ];
+                    var ebotCostume = new Costume( ebotCostumeImg.canvas, ebotStatus );
+                    sprite.addCostume( ebotCostume );
+                    MBOT_STATUS_COSTUMES_IMAGES[ ebotStatus ].costume = ebotCostume;
+                });    
+                callback();
+                return;
+        });        
+    }
+    
+    
+
+    IDE_Morph.prototype.addSpriteForEbot = function ( bot ) {
+        var ebot = bot;        
+        var thisIde = this;
+
+        var spriteOfCurrEbot = getSpriteOfEbot( ebot) ;
+        
+        if( ! spriteOfCurrEbot ){
+            spriteOfCurrEbot = this.createNewSprite( ebot.port );      
+            thisIde.loadEbotStatusCostumes( spriteOfCurrEbot, function(){
+                wearConnectedCostumeOnCurrSprite();
+            });
+            thisIde.serialports[ ebot.port ] = { sprite: spriteOfCurrEbot };            
+        } 
+
+        wearConnectedCostumeOnCurrSprite();
+        dressUpEbotForStatusChanges( ebot, spriteOfCurrEbot );
+        thisIde.serialports[ bot.port ].ebot = bot;
+        spriteOfCurrEbot.ebot = bot;        
+
+        function getSpriteOfEbot(ebot){
+            if( thisIde.serialports && thisIde.serialports[ ebot.port ] ) {
+                return thisIde.serialports[ ebot.port ].sprite;
+            } else {
+                return null;
+            }
+        }
+        
+        function wearConnectedCostumeOnCurrSprite(){
+            spriteOfCurrEbot.wearCostume( MBOT_STATUS_COSTUMES_IMAGES[ "connected" ].costume );
+        }            
+
+    };
+    
+    IDE_Morph.prototype.createNewSprite = function( spriteName ){        
+        var sprite = new SpriteMorph(this.globalVariables);            
+        
+        sprite.name = spriteName ; //this.newSpriteName(sprite.name);
+        sprite.setCenter(this.stage.center());
+        this.stage.add(sprite);
+
+        sprite.setHue(25);
+        sprite.setBrightness(75);
+        sprite.turn(0);
+        sprite.setXPosition( ( ide_morph.sprites.length() - 2 ) * 100  - 80 );
+        sprite.setYPosition( -100 );
+
+        this.sprites.add(sprite);
+        this.corral.addSprite(sprite);
+        this.selectSprite(sprite);
+        
+        return sprite;
+    };
+}    
+    /*
+    IDE_Morph.prototype.createEbotSprite = function ( bot ) {
+
+
+
+
+            
+        if( this.templateEbotSprite ){
+            this.duplicateSprite( this.templateEbotSprite );
+            this.currentSprite.name = bot.port;               
+        } else {
+            
+        }           
+            
         var spritesByEbotPort = getSpritesByEbotPort();
           
         if( ! this.templateBot ){
             if( ! existsSpriteForEbot( bot ) ){
                 this.createEbotSprite( bot, function( ebotSprite ) {
                     ebotSprite.variables.vars['ebot-port'] = new Variable( bot.port );
-                    thisIdeMorph.templateBot = ebotSprite;
+                    thisIde.templateBot = ebotSprite;
                 });                                
             } else {
                 this.templateBot = spritesByEbotPort.first;
@@ -117,8 +263,8 @@ function overrideSnapFunctions(){
 
         function getSpritesByEbotPort(){
             var spritesByEbotPort = { first: null };
-            for( var i = 1; i <= thisIdeMorph.sprites.length(); i++){
-                var currSprite = thisIdeMorph.sprites.at(i);
+            for( var i = 1; i <= thisIde.sprites.length(); i++){
+                var currSprite = thisIde.sprites.at(i);
                 if( spriteIsEbot( currSprite )  ){
                     if( ! spritesByEbotPort.first ){
                         spritesByEbotPort.first = currSprite.ebot;
@@ -135,8 +281,39 @@ function overrideSnapFunctions(){
         
     };
 
+
+
     IDE_Morph.prototype.createEbotSprite = function( bot, callback ){        
-        this.addEbotSprite( bot );
+        var sprite = new SpriteMorph(this.globalVariables);            
+        sprite.ebot = bot;
+        sprite.ebot.reconnect = true;
+        sprite.ebot.on('ready',function(){
+            console.log('sprite ebot received ready!');
+            sprite.wearCostume( MBOT_STATUS_COSTUMES_IMAGES[ "connected" ].costume );                
+        });
+        sprite.ebot.on('disconnected',function(){
+            sprite.wearCostume( MBOT_STATUS_COSTUMES_IMAGES[ "disconnected" ].costume );                
+        });
+        sprite.ebot.on('reconnecting',function(){
+            sprite.wearCostume( MBOT_STATUS_COSTUMES_IMAGES[ "reconnecting" ].costume );                
+        });
+        
+        sprite.name = bot.port ; //this.newSpriteName(sprite.name);
+        sprite.setCenter(this.stage.center());
+        this.stage.add(sprite);
+
+        sprite.setHue(25);
+        sprite.setBrightness(75);
+        sprite.turn(0);
+        sprite.setXPosition( ( ide_morph.sprites.length() - 2 ) * 100  - 80 );
+        sprite.setYPosition( -100 );
+
+        this.sprites.add(sprite);
+        this.corral.addSprite(sprite);
+        this.selectSprite(sprite);
+        
+        
+        
         var thisIdeMorph = this;
         var currentSprite = this.currentSprite;
         loadCostumes( function afterCostumesLoaded(){
@@ -169,33 +346,7 @@ function overrideSnapFunctions(){
 
 
     IDE_Morph.prototype.addEbotSprite = function ( bot ) {
-        var sprite = new SpriteMorph(this.globalVariables);            
-        sprite.ebot = bot;
-        sprite.ebot.reconnect = true;
-        sprite.ebot.on('ready',function(){
-            console.log('sprite ebot received ready!');
-            sprite.wearCostume( MBOT_STATUS_COSTUMES_IMAGES[ "connected" ].costume );                
-        });
-        sprite.ebot.on('disconnected',function(){
-            sprite.wearCostume( MBOT_STATUS_COSTUMES_IMAGES[ "disconnected" ].costume );                
-        });
-        sprite.ebot.on('reconnecting',function(){
-            sprite.wearCostume( MBOT_STATUS_COSTUMES_IMAGES[ "reconnecting" ].costume );                
-        });
-        
-        sprite.name = bot.port ; //this.newSpriteName(sprite.name);
-        sprite.setCenter(this.stage.center());
-        this.stage.add(sprite);
 
-        sprite.setHue(25);
-        sprite.setBrightness(75);
-        sprite.turn(0);
-        sprite.setXPosition( ( ide_morph.sprites.length() - 2 ) * 100  - 80 );
-        sprite.setYPosition( -100 );
-
-        this.sprites.add(sprite);
-        this.corral.addSprite(sprite);
-        this.selectSprite(sprite);
     };
 
 
@@ -257,3 +408,83 @@ function overrideSnapFunctions(){
         menu.popup(world, pos);
     };
 }
+
+
+function EbotSprites( ide ){
+    var ebotSpritesByPort = {};
+    init();
+    
+    
+    function init(){
+        for( var i = 1; i <= ide.sprites.length(); i++){
+            var currSprite = ide.sprites.at(i);
+            if( this.isEbotSprite( currSprite )  ){
+                this.addEbotSprite( currSprite );
+            }
+        }        
+    }
+    
+    this.isEbotSprite = function( sprite ){
+        if( this.getSpriteEbotPort( sprite ) ){
+            return true;
+        } else {
+            return false;
+        }
+    }        
+
+    this.getSpriteEbotPort = function( sprite ){
+            return sprite.variables.vars['ebot-port'];
+    }  
+                
+    this.setEbotOfSprite = function( bot, sprite ){
+            return sprite.variables.vars['ebot-port'];
+    }  
+                
+    this.addEbotSprite = function( sprite ){
+        var ebotport = sprite.variables.vars['ebot-port'];            
+        if( ebotport ){
+            ebotSpritesByPort[ ebotport ] = sprite;
+        }
+    }
+    
+    
+    this.getEbotOfSprite = function( sprite ){
+        return sprite.ebot;
+    }
+    
+    this.addEbot = function( bot ){
+        var ebotport = ebot.port;
+        if( ebotSpritesByPort[ ebotport ] ){
+            ebotSpritesByPort[ ebotport ].ebot = ebot; 
+        } else {
+            
+        }           
+        
+    };
+    
+}
+
+
+function EbotSprite( aSprite ){
+    var sprite = aSprite;
+    
+    
+    
+    
+    this.setEbot = function( bot ){
+        sprite.ebot = bot;
+        sprite.variables.vars['ebot-port'] = bot.port;
+    }
+
+    this.getEbot = function(){
+        return sprite.ebot;
+    }
+
+    this.getEbotPort = function(){
+        return sprite.variables.vars['ebot-port'];
+    }
+    
+    
+}
+
+*/

@@ -3,13 +3,13 @@ const remote = require('electron').remote;
 const BrowserWindow = remote.BrowserWindow;
 const ElectronBotProcess = BrowserWindow;
 const ipcMain = remote.ipcMain;
-const DEBUG = ipcMain.DEBUG;
+const DEBUG = ( process.env.EBOT_DEBUG === 'true' || process.env.SNAPTRON_DEBUG === 'true' ? true : false );
 const EventEmitter = require('events');
 const ipcRenderer = require('electron').ipcRenderer;
 const five = require("johnny-five");
 const fs = require('fs');
 
-const SERIAL_PROBE_TIMEOUT_IN_MS = 10000;
+const SERIAL_PROBE_TIMEOUT_IN_MS = 15000;
 const FIRMATA_GETVERSION_CMD = 0xF9;
 const BOARD_WATCHDOG_INTERVAL_IN_MS = 2000;
 
@@ -71,13 +71,17 @@ function ElectronBot( port , jsfile ){
     }
 
     function forkBot( jsfile ){
-        thisBot.process = new ElectronBotProcess( {width: 800, height: 600, show: false } );
-        thisBot.process.loadURL('file://' + __dirname + '/ebot.html');                        
+        var showWindow = ( DEBUG ? true: false );
+        console.log("showWindow: " + showWindow );
+        thisBot.process = new ElectronBotProcess( {width: 800, height: 600, show: showWindow } );
+        thisBot.process.loadURL('file://' + __dirname + '/ebot.html');  
+        if( DEBUG ){
+            console.log( "I'm on DEBUG, baby!" );
+            thisBot.process.webContents.openDevTools();
+        }                      
+
         runJsOnBotProcess(jsfile);
         
-        if( DEBUG ){
-            thisBot.process.webContents.openDevTools();
-        }
         thisBot.dispatcher = thisBot.process.webContents;
 
         thisBot.process.on('closed', function() {
@@ -118,8 +122,6 @@ function ElectronBotSlave(){
     var lastTick = -1;
     var boardPing = null;
 
-    var port = null;
-
     var error = null;
     var myId;
     var startTime = new Date().getTime();
@@ -133,7 +135,8 @@ function ElectronBotSlave(){
                 
         connectToBoardIfFound()                
                               
-        function connectToBoardIfFound(){            
+        function connectToBoardIfFound(){  
+
             port.once('open', function(){ 
                 port.write(new Buffer([FIRMATA_GETVERSION_CMD]));
             });
@@ -141,6 +144,7 @@ function ElectronBotSlave(){
             port.once('data', function( data ){
                 buffer = data;
                 if( data.length !== 3 || data[0] !== FIRMATA_GETVERSION_CMD ){
+                                console.log('Response from board not as expected. will call now reportBoardNotFound()');          
                     reportBoardNotFound();                            
                 } else {            
                     connectBoard();            

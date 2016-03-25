@@ -15,8 +15,10 @@ const LAST_OPENED_PROJECT_NAME = mainWindow.LAST_OPENED_PROJECT_NAME;
 const SETTINGS_STORAGE_ID = 'settings';
 const USER_SETTINGS_FILENAME = '.snaptron';
 const MBOT_STATUS_COSTUMES_IMAGES = { 
+    offline : { filename: "mbot-gray.png", canvas: null }, 
     connected : { filename: "mbot-green.png", canvas: null }, 
     reconnecting: { filename: "mbot-orange.png", canvas: null },  
+    connecting: { filename: "mbot-orange.png", canvas: null },  
     disconnected:  { filename: "mbot-red.png", canvas: null },
 };
 const MBOT_DIR = 'mbot';
@@ -39,55 +41,78 @@ if( !tempStorage ){ tempStorage = {}; }
 var world = new WorldMorph(document.getElementById('world'));
 var ide_morph = new IDE_Morph();
 
-setInterval( function syncEbotsWithSprites(){
-    console.log( new Date().getTime() );
-    var ebotsByPort = {};
-    var spritesByPort = {};
-    var ebotPorts = Object.keys( GLOBALS.ebots );
+overrideSnapFunctions();
+ide_morph.loadAllCostumes( function() {
+    setInterval( function syncEbotsWithSprites(){
+        console.log( new Date().getTime() );
+        var ebotsByPort = {};
+        var spritesByPort = {};
+        var ebotPorts = Object.keys( GLOBALS.ebots );
 
-
-    ide_morph.sprites.contents.forEach( function( sprite ){
-        var port = sprite.variables.vars['ebot-port'].value;
-        if( port ){            
-            spritesByPort[ port ] = sprite;
-        }
-    });
-    
-    ebotPorts.forEach( function( ebotPort ){
-        var ebotIdx = ebotPort;
-        var ebot = GLOBALS.ebots[ ebotIdx ];
-        var sprite = spritesByPort[ ebotIdx ];
-        var lastCostume;
+        ide_morph.sprites.contents.forEach( function( sprite ){
+            var port = getSpriteVar( sprite, 'ebot-port'); 
+            if( port ){            
+                spritesByPort[ port ] = sprite;
+            }
+        });
         
-        if( ebot.status !== 'offline'){
-            ebot.reconnect = true;
-            ebotsByPort[ ebotIdx ] = ebot;
+        ebotPorts.forEach( function( ebotPort ){
+            var ebotIdx = ebotPort;
+            var ebot = GLOBALS.ebots[ ebotIdx ];
+            var sprite = spritesByPort[ ebotIdx ];
+            var lastCostume = null;
             
-            if( sprite ){         
-                lastCostume = sprite.variables.vars['last-costume'].value;
+            if( ebot.status !== 'offline' ){
+                ebot.reconnect = true;
+                ebotsByPort[ ebotIdx ] = ebot;
+            }    
+
+            if( sprite ){                         
+                if( ! getSpriteVar( sprite, 'last-costume') ){
+                    sprite.variables.addVar( 'last-costume', "" );                
+                } ;
                 if( lastCostume !== ebot.status ){
-                    console.log( 'switching to costume: ' + ebot.status );       
-                    sprite.doSwitchToCostume( ebot.status );
-                    sprite.variables.vars['last-costume'].value = ebot.status;
+                    console.log( 'switching to costume: ' + ebot.status );
+                    setSpriteStatus( sprite , ebot.status );       
+                    lastCostume = ( sprite.getCostumeIdx() !== 0 ? ebot.status : "" );               
+                    sprite.variables.setVar('last-costume', ebot.status );
                 }
             } else {
-                console.log( 'creating new sprite '  );       
-                sprite = ide_morph.createNewSprite( ebot.port );     
-                sprite.variables.addVar( 'ebot-port', ebot.port  );
-                sprite.variables.addVar( 'last-costume', "" );
-                ide_morph.loadEbotStatusCostumes( sprite, function(){
-                    console.log( "costumes loaded for sprite of ebot: " + ebot.port );
-                });                
+                if( ebot.status !== 'offline' ){
+                    sprite = ide_morph.createNewSprite( ebot.port );     
+                    sprite.variables.addVar( 'ebot-port', ebot.port  );
+                    sprite.variables.addVar( 'last-costume', "" );
+                    setSpriteStatus( sprite , ebot.status );       
+                }
             }
-        }        
-        console.log( "     " + ebot.port+": " + ebot.status );        
-    });
-    
-    if( ebotPorts.length === 0 ){
-        ide_morph.connectMbot();
-    }
+                    
+            console.log( "     " + ebot.port+": " + ebot.status );        
+        });
+        
+        if( ebotPorts.length === 0 ){
+            ide_morph.connectMbot();
+        }
 
-}, SPRITES_EBOTS_SYNC_PERIOD_IN_MS);
+        function getSpriteVar( sprite,varName ){
+            var val=null;
+            try{ val = sprite.variables.getVar(varName); }catch(none){}
+            return val;
+        }
+
+        function setSpriteStatus( sprite, status ){            
+            var statusCostume = MBOT_STATUS_COSTUMES_IMAGES[ status ].costume;
+            if( ! sprite.costumes.contains( statusCostume ) ){
+                sprite.addCostume( statusCostume );                
+            }
+            
+            return sprite.doSwitchToCostume( status );
+        }
+
+        
+
+    }, SPRITES_EBOTS_SYNC_PERIOD_IN_MS);
+    
+});
 
 
 mainWindow.on( 'close', function(e) {
@@ -97,7 +122,6 @@ mainWindow.on( 'close', function(e) {
 });
 
 world.worldCanvas.focus();
-overrideSnapFunctions();
 ide_morph.openIn(world);
 loop();  
 
@@ -147,7 +171,8 @@ function overrideSnapFunctions(){
             });
         }
     };
-    
+
+/*    
     IDE_Morph.prototype.loadCostumesImagesNotYetLoaded = function(mbotCostumeImgs, callback ){
         var thisIdeMorph = this;
 
@@ -179,8 +204,8 @@ function overrideSnapFunctions(){
         });
         
     }
-    
-    
+  
+        
     IDE_Morph.prototype.loadEbotStatusCostumes = function( sprite, callback ){
         var thisIdeMorph = this;
         thisIdeMorph.loadCostumesImagesNotYetLoaded( MBOT_STATUS_COSTUMES_IMAGES, function(){
@@ -197,6 +222,58 @@ function overrideSnapFunctions(){
                 return;
         });        
     }
+    
+    IDE_Morph.prototype.changeSpriteStatus = function( sprite, ebotStatus, callback ){        
+        var thisIdeMorph = this;
+        var costumeData =  MBOT_STATUS_COSTUMES_IMAGES[ ebotStatus ];
+        var statusCostume = costumeData.costume;
+                    
+        if( sprite.costumes.contains( statusCostume ) ) {
+            sprite.doSwitchToCostume( ebotStatus );
+            callback();
+        } else {
+            if( ! statusCostume ){
+                thisIdeMorph.loadImg( thisIdeMorph.resourceURL( MBOT_DIR, costumeData.filename ), function( mbotCostumeCanvas ){
+                    thisIdeMorph.hasChangedMedia = true;                                   
+                    costumeData.canvas = mbotCostumeCanvas; 
+                    statusCostume = new Costume( costumeData.canvas, ebotStatus );
+                    costumeData.costume = statusCostume;
+                    addCostumeToSpriteAndCallback(statusCostume);
+                });
+            } else {
+                addCostumeToSpriteAndCallback(statusCostume);
+            }    
+        } 
+
+        function addCostumeToSpriteAndCallback( costume ){
+            sprite.addCostume( costume );
+            callback();
+        }        
+    }
+*/    
+    
+    
+    IDE_Morph.prototype.loadAllCostumes = function( callback ){
+        var thisIdeMorph = this;    
+        var imgKeys = Object.keys( MBOT_STATUS_COSTUMES_IMAGES );
+        var imgLoadedCount = 0;
+        imgKeys.forEach( function( imgKey ){
+           var imgData =  MBOT_STATUS_COSTUMES_IMAGES[ imgKey ];
+           thisIdeMorph.loadImg( thisIdeMorph.resourceURL( MBOT_DIR, imgData.filename ), function( imgCanvas ){
+                thisIdeMorph.hasChangedMedia = true;                                   
+                imgData.canvas = imgCanvas; 
+                imgData.costume = new Costume( imgData.canvas, imgKey );
+                imgLoadedCount++;
+                if( imgLoadedCount >= imgKeys.length){
+                    callback();
+                }
+           });           
+        });
+    }
+    
+    
+    
+    
 
     IDE_Morph.prototype.createNewSprite = function( spriteName ){        
         var sprite = new SpriteMorph(this.globalVariables);            

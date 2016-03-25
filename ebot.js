@@ -12,6 +12,9 @@ const fs = require('fs');
 const SERIAL_PROBE_TIMEOUT_IN_MS = 15000;
 const FIRMATA_GETVERSION_CMD = 0xF9;
 const BOARD_WATCHDOG_INTERVAL_IN_MS = 2000;
+const MAX_RECONNECT_ATTEMPTS = 5;
+const TIME_BETWEEN_RECONNECT_ATTEMPTS_IN_MS = 5000;
+const BOARD_PING_PERIOD_IN_MS = 1000;
 
 var serialport = require("serialport");
 var SerialPort = serialport.SerialPort;
@@ -54,8 +57,8 @@ function ElectronBot( port , jsfile ){
                 break;
             case 'board-ready':
                 thisBot.ready = true;
+                thisBot.reconnectAttemptsRemaining = MAX_RECONNECT_ATTEMPTS;                                
                 console.log('ebot emitted ready!');
-
                 thisBot.emit('ready');
                 break;
             default:
@@ -111,9 +114,13 @@ function ElectronBot( port , jsfile ){
             thisBot.dispatcher = null;
             thisBot.process = null;
             if( thisBot.reconnect ){
-                console.log("reconnecting in 3s...");
-                thisBot.emit('reconnecting');                
-                setTimeout( thisBot.connect, 5000 );
+                if( thisBot.reconnectAttemptsRemaining > 0 ){
+                    thisBot.reconnectAttemptsRemaining--
+                    console.log("reconnectAttemptsRemaining: " + thisBot.reconnectAttemptsRemaining );
+                    console.log("reconnecting in 3s...");
+                    thisBot.emit('reconnecting');                
+                    setTimeout( thisBot.connect, TIME_BETWEEN_RECONNECT_ATTEMPTS_IN_MS );
+                }
             }                
             thisBot.emit('disconnected');
         });        
@@ -205,7 +212,7 @@ function ElectronBotSlave(){
                     ebot.board.queryPinState(1, function(value) {
                         currTick++;            
                     });
-                }, 1000);
+                }, BOARD_PING_PERIOD_IN_MS);
 
 
                 ipcRenderer.on('command', function( event, data) {                
@@ -230,7 +237,7 @@ function ElectronBotSlave(){
             console.log("TICKS: " + currTick ); 
         }
         lastTick = currTick;                
-        setTimeout( checkPortOpened ,2000, port);
+        setTimeout( checkPortOpened ,BOARD_WATCHDOG_INTERVAL_IN_MS, port);
     }
 }
 

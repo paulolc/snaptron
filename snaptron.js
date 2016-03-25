@@ -1,6 +1,18 @@
-
+const util = require('util');
+const remote = require('electron').remote;
+var mainWindow = remote.getCurrentWindow();
+const ipcRenderer = require('electron').ipcRenderer;
 var ebot = require('./ebot');
-var ebots;
+//var ebots; // MOVE TO GLOBALS OBJECT
+var GLOBALS = {
+    ebots: ebot.ebots
+}
+
+
+log('Starting snaptron controller...');
+
+
+const LAST_OPENED_PROJECT_NAME = mainWindow.LAST_OPENED_PROJECT_NAME;
 
 
 const SETTINGS_STORAGE_ID = 'settings';
@@ -12,7 +24,8 @@ const MBOT_STATUS_COSTUMES_IMAGES = {
 };
 const MBOT_DIR = 'mbot';
 
-// hey stupid, don't use globals, mkay?
+
+
 if (typeof localStorage === "undefined" || localStorage === null) {
     var LocalStorage = require('node-localstorage').LocalStorage;
     var userSettingsFile = os.homedir() + '/' + USER_SETTINGS_FILENAME;
@@ -29,15 +42,102 @@ if( !tempStorage ){ tempStorage = {}; }
 var world = new WorldMorph(document.getElementById('world'));
 var ide_morph = new IDE_Morph();
 
+
+
+//----------------------------------------------------------------------------------
+setInterval( function syncEbotsWithSprites(){
+    console.log( new Date().getTime() );
+    var ebotsByPort = {};
+    var spritesByPort = {};
+    var ebotPorts = Object.keys( GLOBALS.ebots );
+
+
+    ide_morph.sprites.contents.forEach( function( sprite ){
+        var port = sprite.variables.vars['ebot-port'].value;
+        if( port ){            
+            spritesByPort[ port ] = sprite;
+        }
+    });
+    
+    ebotPorts.forEach( function( ebotPort ){
+        var ebotIdx = ebotPort;
+        var ebot = GLOBALS.ebots[ ebotIdx ];
+        var sprite = spritesByPort[ ebotIdx ];
+        var lastCostume;
+        
+        if( ebot.status !== 'offline'){
+            ebot.reconnect = true;
+            ebotsByPort[ ebotIdx ] = ebot;
+            
+            if( sprite ){         
+                lastCostume = sprite.variables.vars['last-costume'].value;
+                if( lastCostume !== ebot.status ){
+                    console.log( 'switching to costume: ' + ebot.status );       
+                    sprite.doSwitchToCostume( ebot.status );
+                    sprite.variables.vars['last-costume'].value = ebot.status;
+                }
+            } else {
+                console.log( 'creating new sprite '  );       
+                sprite = ide_morph.createNewSprite( ebot.port );     
+                sprite.variables.addVar( 'ebot-port', ebot.port  );
+                sprite.variables.addVar( 'last-costume', "" );
+                ide_morph.loadEbotStatusCostumes( sprite, function(){
+                    console.log( "costumes loaded for sprite of ebot: " + ebot.port );
+                });                
+            }
+        }        
+        console.log( "     " + ebot.port+": " + ebot.status );        
+    });
+    
+    if( ebotPorts.length === 0 ){
+        ide_morph.connectMbot();
+    }
+
+}, 2000);
+//----------------------------------------------------------------------------------
+
+
+
+mainWindow.on( 'close', function(e) {
+  log('LAST_OPENED_PROJECT_NAME: ' + LAST_OPENED_PROJECT_NAME);
+  //switchAllEbotSpritesToCostume("disconnected");
+  ide_morph.globalVariables.vars.projectName = new Variable( ide_morph.projectName );
+  ide_morph.rawSaveProject(LAST_OPENED_PROJECT_NAME);
+/*
+  function switchAllEbotSpritesToCostume(costumeName){
+      ide_morph.sprites.contents.map( function(sprite){ 
+          if(  spriteHasCostume( sprite, costumeName ) ) { 
+              sprite.doSwitchToCostume(costumeName); 
+          }
+      });
+      
+  }
+  
+  function spriteHasCostume( sprite, costumeName ){
+      return sprite.costumes.contents.filter(function(costume){ return costume.name === costumeName;}).length > 0
+  }
+*/  
+});
+
+
+/*
 ebot.on('ebot-ready', function( ebotReady ){
    console.log( 'got ebot-ready: ' + ebotReady.port );
    ide_morph.addSpriteForEbot( ebotReady );
 });
-
+*/
 
 world.worldCanvas.focus();
-ide_morph.openIn(world);
 overrideSnapFunctions();
+ide_morph.openIn(world);
+/*
+ide_morph.nextSteps( [
+    function(){ 
+        ide_morph.openProject('(last opened project)'); 
+        ide_morph.refreshIDE(); log('Opening last opened project');  
+    }
+]);
+*/
 loop();  
 
 
@@ -46,15 +146,17 @@ function loop() {
     world.doOneCycle();
 }
 
-function saveStorage(){
+function saveStorage(){   
     localStorage.setItem(SETTINGS_STORAGE_ID, JSON.stringify( tempStorage ) );
+    log('Saving storage....');
 }
 
-function log( text, type){
+function log( text ){
+        ipcRenderer.send('snaptron-logger', text );
+}
+/*
     var date = new Date();
-    var inSandbox = ( typeof chrome.app === 'undefined' )
-    console.log("[INFO](%s) %02d/%02d/%02d %02d:%02d:%02d.%03d - %s", 
-        (inSandbox? 'S': ' '), 
+        ipcRenderer.send('snaptron-logger', util.format( '[INFO] %02d/%02d/%02d %02d:%02d:%02d.%03d - %s', 
         date.getFullYear(), 
         date.getMonth(), 
         date.getDate(), 
@@ -63,62 +165,104 @@ function log( text, type){
         date.getSeconds(), 
         date.getMilliseconds(), 
         text
-        );
+        ));
+*/
+
+/*
+function periodicallyEnsureEbotsAreDressedAccordingToStatus(ide){
+
+        setInterval( switchEbotsCostumesAccordingToStatus , 5000);
+
+        function switchEbotsCostumesAccordingToStatus(){
+            var ebotsBySerialPort = ide.serialports;
+            if( ebotsBySerialPort ){
+                Object.keys( ebotsBySerialPort ).forEach( function( serialPort ){
+                    var ebot = ebotsBySerialPort[ serialPort ].ebot;
+                    var ebotStatus = ( ebot ? ebot.status : "unknown" );
+                    var ebotSprite = ebotsBySerialPort[ serialPort ].sprite;
+                                        
+                    if ( ebotSprite ){
+                        ebotSprite.doSwitchToCostume( ebotStatus );
+                    } 
+                });                    
+                    
+            }
+        }
 }
+*/
+
+
+
 
 
 function overrideSnapFunctions(){
     
     var overridenOpenProjectFunction = SnapSerializer.prototype.openProject;
-       
     
     SnapSerializer.prototype.openProject = function( project, ide ){
-        overridenOpenProjectFunction( project, ide);
 
-        for( var i = 1; i <= ide.sprites.length(); i++){
-            var currSprite = ide.sprites.at(i);
-            var currSpriteEbotPort = currSprite.variables.vars['ebot-port'];
-            if( currSpriteEbotPort ){
-                ide.serialports[ currSpriteEbotPort ].sprite = currSprite;
+        recoverOriginalProjectName();
+        //associateSpritesToSerialPorts( project.sprites );           
+        overridenOpenProjectFunction( project, ide);
+        
+
+        
+        function recoverOriginalProjectName(){
+            var projectNameVar = project.globalVariables.vars.projectName;  
+            if( project.name === LAST_OPENED_PROJECT_NAME && projectNameVar ){            
+                project.name =  projectNameVar.value ;                    
             }
         }
-        
-        console.log( 'Project Opened!');
+
+/*        
+        function associateSpritesToSerialPorts( sprites ){
+            Object.keys( sprites ).map( function associateSpriteToSerialPort( spriteKey ){
+                var currSprite = project.sprites[ spriteKey ];
+                var currSpriteEbotPort = currSprite.variables.vars['ebot-port'];
+                if( currSpriteEbotPort ){
+                    console.log("Switching to costume disconnected on sprite: " + currSprite.name );
+                    currSprite.doSwitchToCostume("disconnected"); 
+                    setIdeSerialPortSprite( currSpriteEbotPort.value, currSprite );
+                }
+            });
+
+            function setIdeSerialPortSprite( port, sprite ){
+                if( ! ide.serialports ){
+                    ide.serialports = {};
+                }
+                var idePort = ide.serialports[ port.value ];
+                if( ! idePort ){
+                    idePort = { sprite: sprite };
+                } else {
+                    idePort.sprite = sprite ;
+                }    
+            }
+        }
+  */      
+
     }
-    
 
     IDE_Morph.prototype.connectMbot = function () {
         var msg;
         var thisIdeMorph = this;
+/*
         if( ! thisIdeMorph.serialports ){
             thisIdeMorph.serialports = {};
         }
+*/
         
         if( ! this.ebotsLoading ){                
             this.ebotsLoading = true;
             msg = thisIdeMorph.showMessage('Searching for connected bots');
             ebot.loadBots( "./mbot.js" , function( readyEbots ) {
-                ebots = readyEbots;
+                console.log("Ebots scan finished. All connected ebots loaded.");
+                //GLOBALS.ebots = readyEbots;
                 thisIdeMorph.ebotsLoading = false;
-                console.log(Object.keys( ebots ));
+                console.log(Object.keys( GLOBALS.ebots ));
                 msg.destroy();
             });
         }
     };
-        
-    function dressUpEbotForStatusChanges( ebot, sprite ){
-            ebot.reconnect = true;
-            ebot.on('ready',function(){
-                console.log('sprite ebot received ready!');
-                sprite.wearCostume( MBOT_STATUS_COSTUMES_IMAGES[ "connected" ].costume );                
-            });        
-            ebot.on('disconnected',function(){
-                sprite.wearCostume( MBOT_STATUS_COSTUMES_IMAGES[ "disconnected" ].costume );                
-            });
-            ebot.on('reconnecting',function(){
-                sprite.wearCostume( MBOT_STATUS_COSTUMES_IMAGES[ "reconnecting" ].costume );                
-            });
-    }
     
     IDE_Morph.prototype.loadCostumesImagesNotYetLoaded = function(mbotCostumeImgs, callback ){
         var thisIdeMorph = this;
@@ -169,8 +313,23 @@ function overrideSnapFunctions(){
                 return;
         });        
     }
-    
-    
+
+/////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*    
+    function dressUpEbotForStatusChanges( ebot, sprite ){
+            ebot.reconnect = true;
+            ebot.on('ready',function(){
+                console.log('sprite ebot received ready!');
+                sprite.doSwitchToCostume( "connected" );                
+            });        
+            ebot.on('disconnected',function(){
+                sprite.doSwitchToCostume( "disconnected" );                
+            });
+            ebot.on('reconnecting',function(){
+                sprite.doSwitchToCostume( "reconnecting" );                
+            });
+    }    
 
     IDE_Morph.prototype.addSpriteForEbot = function ( bot ) {
         var ebot = bot;        
@@ -179,10 +338,14 @@ function overrideSnapFunctions(){
         var spriteOfCurrEbot = getSpriteOfEbot( ebot) ;
         
         if( ! spriteOfCurrEbot ){
+            
+            //// BEGIN - SPRITE FOR NEW EBOT CREATION //////
             spriteOfCurrEbot = this.createNewSprite( ebot.port );      
             thisIde.loadEbotStatusCostumes( spriteOfCurrEbot, function(){
                 wearConnectedCostumeOnCurrSprite();
             });
+            //// END - SPRITE FOR NEW EBOT CREATION  //////
+
             thisIde.serialports[ ebot.port ] = { sprite: spriteOfCurrEbot };            
         } 
 
@@ -200,10 +363,13 @@ function overrideSnapFunctions(){
         }
         
         function wearConnectedCostumeOnCurrSprite(){
-            spriteOfCurrEbot.wearCostume( MBOT_STATUS_COSTUMES_IMAGES[ "connected" ].costume );
+            spriteOfCurrEbot.doSwitchToCostume( "connected" );
         }            
 
     };
+*/
+/////////////////////////////////////////////////////////////////////////////////////////////////
+
     
     IDE_Morph.prototype.createNewSprite = function( spriteName ){        
         var sprite = new SpriteMorph(this.globalVariables);            
@@ -225,266 +391,4 @@ function overrideSnapFunctions(){
         return sprite;
     };
 }    
-    /*
-    IDE_Morph.prototype.createEbotSprite = function ( bot ) {
 
-
-
-
-            
-        if( this.templateEbotSprite ){
-            this.duplicateSprite( this.templateEbotSprite );
-            this.currentSprite.name = bot.port;               
-        } else {
-            
-        }           
-            
-        var spritesByEbotPort = getSpritesByEbotPort();
-          
-        if( ! this.templateBot ){
-            if( ! existsSpriteForEbot( bot ) ){
-                this.createEbotSprite( bot, function( ebotSprite ) {
-                    ebotSprite.variables.vars['ebot-port'] = new Variable( bot.port );
-                    thisIde.templateBot = ebotSprite;
-                });                                
-            } else {
-                this.templateBot = spritesByEbotPort.first;
-            }            
-        } else {
-            if( ! existsSpriteForEbot( bot ) ){
-                this.duplicateSprite( this.templateBot );
-                this.currentSprite.name = bot.port;
-            }                                
-        }
-
-        function existsSpriteForEbot( bot ){
-            return spritesByEbotPort[ bot.port ]
-        }
-
-        function getSpritesByEbotPort(){
-            var spritesByEbotPort = { first: null };
-            for( var i = 1; i <= thisIde.sprites.length(); i++){
-                var currSprite = thisIde.sprites.at(i);
-                if( spriteIsEbot( currSprite )  ){
-                    if( ! spritesByEbotPort.first ){
-                        spritesByEbotPort.first = currSprite.ebot;
-                    }
-                    spritesByEbotPort[ currSprite.ebot.port ] = currSprite.ebot;
-                }
-            }
-            return spritesByEbotPort;
-        }
-        
-        function spriteIsEbot( sprite ){
-            return sprite.variables.vars['ebot-port'];
-        }        
-        
-    };
-
-
-
-    IDE_Morph.prototype.createEbotSprite = function( bot, callback ){        
-        var sprite = new SpriteMorph(this.globalVariables);            
-        sprite.ebot = bot;
-        sprite.ebot.reconnect = true;
-        sprite.ebot.on('ready',function(){
-            console.log('sprite ebot received ready!');
-            sprite.wearCostume( MBOT_STATUS_COSTUMES_IMAGES[ "connected" ].costume );                
-        });
-        sprite.ebot.on('disconnected',function(){
-            sprite.wearCostume( MBOT_STATUS_COSTUMES_IMAGES[ "disconnected" ].costume );                
-        });
-        sprite.ebot.on('reconnecting',function(){
-            sprite.wearCostume( MBOT_STATUS_COSTUMES_IMAGES[ "reconnecting" ].costume );                
-        });
-        
-        sprite.name = bot.port ; //this.newSpriteName(sprite.name);
-        sprite.setCenter(this.stage.center());
-        this.stage.add(sprite);
-
-        sprite.setHue(25);
-        sprite.setBrightness(75);
-        sprite.turn(0);
-        sprite.setXPosition( ( ide_morph.sprites.length() - 2 ) * 100  - 80 );
-        sprite.setYPosition( -100 );
-
-        this.sprites.add(sprite);
-        this.corral.addSprite(sprite);
-        this.selectSprite(sprite);
-        
-        
-        
-        var thisIdeMorph = this;
-        var currentSprite = this.currentSprite;
-        loadCostumes( function afterCostumesLoaded(){
-                console.log('All costumes loaded');
-                callback();   
-        });
-        
-        
-        function loadCostumes( cb ){
-            Object.keys( MBOT_STATUS_COSTUMES_IMAGES ).forEach( function( mbotCostumeImgKey ){
-                var mbotCostumeImgFile = MBOT_STATUS_COSTUMES_IMAGES[ mbotCostumeImgKey ].filename;
-                thisIdeMorph.loadImg( thisIdeMorph.resourceURL( MBOT_DIR, mbotCostumeImgFile ), function( mbotCostumeCanvas ){
-                    MBOT_STATUS_COSTUMES_IMAGES[ mbotCostumeImgKey ].canvas = mbotCostumeCanvas;
-                    MBOT_STATUS_COSTUMES_IMAGES[ mbotCostumeImgKey ].costume = new Costume( mbotCostumeCanvas, mbotCostumeImgKey );
-                    currentSprite.addCostume( MBOT_STATUS_COSTUMES_IMAGES[ mbotCostumeImgKey ].costume );     
-                    thisIdeMorph.hasChangedMedia = true;                                   
-                    returnWhenAllCostumesLoaded(cb);   
-                });
-
-                function returnWhenAllCostumesLoaded(){
-                    if( Object.keys( MBOT_STATUS_COSTUMES_IMAGES ).length === currentSprite.costumes.length() ){ 
-                        currentSprite.wearCostume( MBOT_STATUS_COSTUMES_IMAGES[ "connected" ].costume );
-                        cb(); 
-                    }
-                }                    
-            });
-        }
-    };
-
-
-
-    IDE_Morph.prototype.addEbotSprite = function ( bot ) {
-
-    };
-
-
-
-
-    IDE_Morph.prototype.serialSelectMenu = function () {
-        var menu,
-            stage = this.stage,
-            world = this.world(),
-            myself = this,
-            pos = this.controlBar.serialSelectButton.bottomLeft(),
-            shiftClicked = (world.currentKey === 16);
-
-        function addPreference(label, toggle, test, onHint, offHint, hide) {
-            var on = '\u25c9 ',
-                off = '\u25EF ';
-            if (!hide || shiftClicked) {
-                menu.addItem(
-                    (test ? on : off) + localize(label),
-                    toggle,
-                    test ? onHint : offHint,
-                    hide ? new Color(100, 0, 0) : null
-                );
-            }
-        }
-
-        menu = new MenuMorph(this);
-        menu.addLine();
-        var sortedSerialPorts = serialPorts.map( function( serialPort ){
-            return serialPort.path;
-        }).sort( function naturalCompare(a, b) {
-            var ax = [], bx = [];
-
-            a.replace(/(\d+)|(\D+)/g, function(_, $1, $2) { ax.push([$1 || Infinity, $2 || ""]) });
-            b.replace(/(\d+)|(\D+)/g, function(_, $1, $2) { bx.push([$1 || Infinity, $2 || ""]) });
-            
-            while(ax.length && bx.length) {
-                var an = ax.shift();
-                var bn = bx.shift();
-                var nn = (an[0] - bn[0]) || an[1].localeCompare(bn[1]);
-                if(nn) return nn;
-            }
-
-            return ax.length - bx.length;
-        });
-        
-        sortedSerialPorts.forEach( function( serialPort ){
-            addPreference(
-                serialPort + ':',
-                'selectSerialPort',
-                false,
-                'click to select ' + serialPort,
-                'click to select ' + serialPort,
-                false
-            );
-            
-        });
-        
-        menu.popup(world, pos);
-    };
-}
-
-
-function EbotSprites( ide ){
-    var ebotSpritesByPort = {};
-    init();
-    
-    
-    function init(){
-        for( var i = 1; i <= ide.sprites.length(); i++){
-            var currSprite = ide.sprites.at(i);
-            if( this.isEbotSprite( currSprite )  ){
-                this.addEbotSprite( currSprite );
-            }
-        }        
-    }
-    
-    this.isEbotSprite = function( sprite ){
-        if( this.getSpriteEbotPort( sprite ) ){
-            return true;
-        } else {
-            return false;
-        }
-    }        
-
-    this.getSpriteEbotPort = function( sprite ){
-            return sprite.variables.vars['ebot-port'];
-    }  
-                
-    this.setEbotOfSprite = function( bot, sprite ){
-            return sprite.variables.vars['ebot-port'];
-    }  
-                
-    this.addEbotSprite = function( sprite ){
-        var ebotport = sprite.variables.vars['ebot-port'];            
-        if( ebotport ){
-            ebotSpritesByPort[ ebotport ] = sprite;
-        }
-    }
-    
-    
-    this.getEbotOfSprite = function( sprite ){
-        return sprite.ebot;
-    }
-    
-    this.addEbot = function( bot ){
-        var ebotport = ebot.port;
-        if( ebotSpritesByPort[ ebotport ] ){
-            ebotSpritesByPort[ ebotport ].ebot = ebot; 
-        } else {
-            
-        }           
-        
-    };
-    
-}
-
-
-function EbotSprite( aSprite ){
-    var sprite = aSprite;
-    
-    
-    
-    
-    this.setEbot = function( bot ){
-        sprite.ebot = bot;
-        sprite.variables.vars['ebot-port'] = bot.port;
-    }
-
-    this.getEbot = function(){
-        return sprite.ebot;
-    }
-
-    this.getEbotPort = function(){
-        return sprite.variables.vars['ebot-port'];
-    }
-    
-    
-}
-
-*/

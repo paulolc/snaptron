@@ -18,23 +18,37 @@ var SerialPort = serialport.SerialPort;
 
 function ElectronBot( port , jsfile ){
     EventEmitter.call(this);
-
     this.jsfile = jsfile || null  ;
     this.id = generateId();
     this.port = port;
+    this.offline = true;
     this.ready = false;
     this.process = null;
     this.dispatcher = null;
     this.reconnect = false;    
+    this.status = 'offline';
     var thisBot = this;
+    
+    
+    this.on('disconnected', function(){
+       this.setStatus( 'disconnected' ); 
+    });
+
+    this.on('ready', function(){
+       this.setStatus( 'connected' ); 
+    });
+
+    this.on('reconnecting', function(){
+       this.setStatus( 'connecting' ); 
+    });
 
     ipcMain.on( this.id, function( event, type, data ){
-        console.log("message received: { type: " + type + ", err: " + util.inspect(data) + ", event: " + util.inspect(event) +"}");
+        console.log("message received at: " + this.id + ": { type: " + type + ", err: " + util.inspect(data) + ", event: " + util.inspect(event) +"}");
         switch(type){
             case 'board-message':
                 thisBot.emit('message', data);
                 break;
-            case 'board-disconnected':            
+            case 'board-disconnected':
             case 'board-failure':                
                 thisBot.disconnect();                
                 break;
@@ -48,14 +62,24 @@ function ElectronBot( port , jsfile ){
         }
     });        
 
+    this.setStatus = function( status ){
+        if( this.status !== 'offline' ){
+            this.status = status;            
+        } else if ( status === 'connected' ){
+            this.status = status;
+        }
+    }
+
     this.disconnect = function (){
+        this.ready = false;
+        this.setStatus( 'disconnected' );
         if( this.process ){
             this.process.destroy();
         }
     }
 
     this.connect = function (){
-        console.log("connecting...");        
+        //console.log("connecting...");        
         if( thisBot.process === null  ){
             forkBot( thisBot.jsfile );
         }
@@ -72,11 +96,9 @@ function ElectronBot( port , jsfile ){
 
     function forkBot( jsfile ){
         var showWindow = ( DEBUG ? true: false );
-        console.log("showWindow: " + showWindow );
         thisBot.process = new ElectronBotProcess( {width: 800, height: 600, show: showWindow } );
         thisBot.process.loadURL('file://' + __dirname + '/ebot.html');  
         if( DEBUG ){
-            console.log( "I'm on DEBUG, baby!" );
             thisBot.process.webContents.openDevTools();
         }                      
 
@@ -88,12 +110,12 @@ function ElectronBot( port , jsfile ){
             console.log("closed!");
             thisBot.dispatcher = null;
             thisBot.process = null;
-            thisBot.emit('disconnected');
             if( thisBot.reconnect ){
                 console.log("reconnecting in 3s...");
                 thisBot.emit('reconnecting');                
                 setTimeout( thisBot.connect, 5000 );
             }                
+            thisBot.emit('disconnected');
         });        
 
         var dispatcher = thisBot.dispatcher;         
@@ -144,7 +166,7 @@ function ElectronBotSlave(){
             port.once('data', function( data ){
                 buffer = data;
                 if( data.length !== 3 || data[0] !== FIRMATA_GETVERSION_CMD ){
-                                console.log('Response from board not as expected. will call now reportBoardNotFound()');          
+                    console.log('Response from board not as expected. will call now reportBoardNotFound()');          
                     reportBoardNotFound();                            
                 } else {            
                     connectBoard();            
@@ -225,7 +247,7 @@ function ElectronBots(){
 
         serialport.list(function (err, ports) {
             if(err){ console.log("Error listing serial ports: " + err ); return ;}
-            console.log(util.inspect(ports));        
+            //console.log(util.inspect(ports));        
             var portsCount = ports.length;                                                            
             ports.forEach( createElectronBot );
             

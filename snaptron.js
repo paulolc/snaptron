@@ -37,7 +37,6 @@ if( !tempStorage ){ tempStorage = {}; }
 ( tempStorage[ '-snap-setting-design' ]  ? "" : tempStorage[ '-snap-setting-design' ] =  'flat' );
 ( tempStorage[ '-snap-setting-language'] ? "" : tempStorage[ '-snap-setting-language'] =  'pt' );
 
-
 var world = new WorldMorph(document.getElementById('world'));
 var ide_morph = new IDE_Morph();
 
@@ -48,7 +47,7 @@ ide_morph.loadAllCostumes( function() {
         var ebotsByPort = {};
         var spritesByPort = {};
         var ebotPorts = Object.keys( GLOBALS.ebots );
-
+        
         ide_morph.sprites.contents.forEach( function( sprite ){
             var port = getSpriteVar( sprite, 'ebot-port'); 
             if( port ){            
@@ -171,88 +170,7 @@ function overrideSnapFunctions(){
             });
         }
     };
-
-/*    
-    IDE_Morph.prototype.loadCostumesImagesNotYetLoaded = function(mbotCostumeImgs, callback ){
-        var thisIdeMorph = this;
-
-        var mbotCostumeImgKeys = Object.keys( mbotCostumeImgs );
-        var totalStatusImgs = mbotCostumeImgKeys.length ;
-        var loadedImgsCount = 0;
-        var mbotCostumeImgFile = null;
-
-        mbotCostumeImgKeys.forEach( function( mbotCostumeImgKey ){
-            
-            var costumeImg = mbotCostumeImgs[ mbotCostumeImgKey ];
-            if( ! costumeImg.canvas ){
-                mbotCostumeImgFile = costumeImg.filename;
-                thisIdeMorph.loadImg( thisIdeMorph.resourceURL( MBOT_DIR, mbotCostumeImgFile ), function( mbotCostumeCanvas ){
-                    costumeImg.canvas = mbotCostumeCanvas; 
-                    loadedImgsCount++;                   
-                    returnWhenAllImagesLoaded(callback);   
-                });                
-            } else {
-                loadedImgsCount++;                   
-                returnWhenAllImagesLoaded( callback );
-            }
-            
-            function returnWhenAllImagesLoaded(cb){
-                if( totalStatusImgs === loadedImgsCount ){ 
-                    cb(); 
-                }
-            }                    
-        });
-        
-    }
-  
-        
-    IDE_Morph.prototype.loadEbotStatusCostumes = function( sprite, callback ){
-        var thisIdeMorph = this;
-        thisIdeMorph.loadCostumesImagesNotYetLoaded( MBOT_STATUS_COSTUMES_IMAGES, function(){
-                thisIdeMorph.hasChangedMedia = true;                                   
-                var ebotStatuses = Object.keys( MBOT_STATUS_COSTUMES_IMAGES );
-                    
-                ebotStatuses.forEach( function addCostume( ebotStatus ){
-                    var ebotCostumeImg = MBOT_STATUS_COSTUMES_IMAGES[ ebotStatus ];
-                    var ebotCostume = new Costume( ebotCostumeImg.canvas, ebotStatus );
-                    sprite.addCostume( ebotCostume );
-                    MBOT_STATUS_COSTUMES_IMAGES[ ebotStatus ].costume = ebotCostume;
-                });    
-                callback();
-                return;
-        });        
-    }
-    
-    IDE_Morph.prototype.changeSpriteStatus = function( sprite, ebotStatus, callback ){        
-        var thisIdeMorph = this;
-        var costumeData =  MBOT_STATUS_COSTUMES_IMAGES[ ebotStatus ];
-        var statusCostume = costumeData.costume;
-                    
-        if( sprite.costumes.contains( statusCostume ) ) {
-            sprite.doSwitchToCostume( ebotStatus );
-            callback();
-        } else {
-            if( ! statusCostume ){
-                thisIdeMorph.loadImg( thisIdeMorph.resourceURL( MBOT_DIR, costumeData.filename ), function( mbotCostumeCanvas ){
-                    thisIdeMorph.hasChangedMedia = true;                                   
-                    costumeData.canvas = mbotCostumeCanvas; 
-                    statusCostume = new Costume( costumeData.canvas, ebotStatus );
-                    costumeData.costume = statusCostume;
-                    addCostumeToSpriteAndCallback(statusCostume);
-                });
-            } else {
-                addCostumeToSpriteAndCallback(statusCostume);
-            }    
-        } 
-
-        function addCostumeToSpriteAndCallback( costume ){
-            sprite.addCostume( costume );
-            callback();
-        }        
-    }
-*/    
-    
-    
+      
     IDE_Morph.prototype.loadAllCostumes = function( callback ){
         var thisIdeMorph = this;    
         var imgKeys = Object.keys( MBOT_STATUS_COSTUMES_IMAGES );
@@ -270,11 +188,7 @@ function overrideSnapFunctions(){
            });           
         });
     }
-    
-    
-    
-    
-
+  
     IDE_Morph.prototype.createNewSprite = function( spriteName ){        
         var sprite = new SpriteMorph(this.globalVariables);            
         

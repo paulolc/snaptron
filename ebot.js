@@ -64,6 +64,11 @@ function ElectronBot( port , jsfile ){
             default:
         }
     });        
+    
+    this.offline = function(){
+        this.disconnect();
+        this.status = 'offline';
+    }
 
     this.setStatus = function( status ){
         if( this.status !== 'offline' ){
@@ -260,25 +265,30 @@ function ElectronBots(){
             
             function createElectronBot( port ) {
                 var portPath = port.comName;
+                var electronBot = these.ebots[ portPath ];
                 
-                if( ! these.ebots[ portPath ] ) {
-                     these.ebots[ portPath ] = new ElectronBot( portPath, jsfile );
+                if( ! electronBot ) {
+                    electronBot = new ElectronBot( portPath, jsfile );
+                    these.ebots[ portPath ] = electronBot;
                 }
-                var electronBot = these.ebots[ portPath ]
-
+                
                 electronBot.once('ready', function(){ 
                     these.ebots[ portPath ].removeAllListeners('disconnected');
-                    these.emit('ebot-ready', these.ebots[ portPath ]);
+                    these.emit('ebot-ready', electronBot);
                     returnIfLastPort(); 
                 });
                                 
                 electronBot.once('disconnected', function(){ 
                     console.log('electronBot disconnected on port ' + portPath );
-                    these.emit('ebot-disconnected', these.ebots[ portPath ]);
+                    these.emit('ebot-disconnected', electronBot);
                     returnIfLastPort(); 
                 });
-                
-                electronBot.connect(); 
+
+                if( electronBot.status === 'connected' ){
+                    electronBot.emit('ready');
+                } else {                
+                    electronBot.connect(); 
+                }
             }
             
             function returnIfLastPort(){ 

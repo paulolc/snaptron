@@ -7,7 +7,6 @@ var GLOBALS = {
     ebots: ebot.ebots
 }
 
-
 log('Starting snaptron controller...');
 
 const SPRITES_EBOTS_SYNC_PERIOD_IN_MS = 2000;
@@ -22,8 +21,6 @@ const MBOT_STATUS_COSTUMES_IMAGES = {
     disconnected:  { filename: "mbot-red.png", canvas: null },
 };
 const MBOT_DIR = 'mbot';
-
-
 
 if (typeof localStorage === "undefined" || localStorage === null) {
     var LocalStorage = require('node-localstorage').LocalStorage;
@@ -63,7 +60,6 @@ world.worldCanvas.focus();
 ide_morph.openIn(world);
 loop();  
 
-
 function loop() {
     requestAnimationFrame(loop);
     world.doOneCycle();
@@ -100,29 +96,6 @@ function syncEbotsWithSprites(){
                 ebot.reconnect = true;
                 ebotsByPort[ ebotIdx ] = ebot;
             }    
-            
-/*
-            if( sprite ){        
-                lastCostume = getSpriteVar( sprite, 'last-costume');                 
-                if( ! lastCostume ){
-                    sprite.variables.addVar( 'last-costume', "" );                
-                } ;
-                if( lastCostume !== ebot.status ){
-                    console.log( 'switching to costume: ' + ebot.status );
-                    setSpriteStatus( sprite , ebot.status );       
-                    lastCostume = ( sprite.getCostumeIdx() !== 0 ? ebot.status : "" );               
-                    sprite.variables.setVar('last-costume', ebot.status );
-                }
-            } else {
-                if( ebot.status !== 'offline' ){
-                    sprite = ide_morph.createNewSprite( ebot.port );     
-                    sprite.variables.addVar( 'ebot-port', ebot.port  );
-                    sprite.variables.addVar( 'last-costume', "" );
-                    setSpriteStatus( sprite , ebot.status );       
-                }
-            }
-
-*/
 
             if( sprite ){        
                 if( sprite.lastStatus !== ebot.status ){
@@ -138,7 +111,6 @@ function syncEbotsWithSprites(){
                     setSpriteStatus( sprite , ebot.status );       
                 }
             }
-
                     
             console.log( "     " + ebot.port+": " + ebot.status );        
         });
@@ -167,8 +139,7 @@ function syncEbotsWithSprites(){
                 if( loadedStatusCostume ) {
                     sprite.addCostume( loadedStatusCostume );                
                 }                            
-            }
-            
+            }            
         }
 }
 
@@ -176,11 +147,18 @@ function syncEbotsWithSprites(){
 function overrideSnapFunctions(){
     
     var overridenOpenProjectFunction = SnapSerializer.prototype.openProject;
-    
+        
+    function loadEbotBlocks( ide ){
+        ide.getURL( 'ebot-blocks.xml', function( err, responseText ) {
+            ide.droppedText( responseText, "ebot-blocks" );
+        });        
+    }
+        
     SnapSerializer.prototype.openProject = function( project, ide ){
 
         recoverOriginalProjectName();
         overridenOpenProjectFunction( project, ide);
+        loadEbotBlocks(ide);
 
         function recoverOriginalProjectName(){
             var projectNameVar = project.globalVariables.vars.projectName;  
@@ -242,5 +220,16 @@ function overrideSnapFunctions(){
         
         return sprite;
     };
+    
+    
+    var overridenNewProjectFunction = IDE_Morph.prototype.newProject;
+        
+    IDE_Morph.prototype.newProject = function(){
+        overridenNewProjectFunction.bind(this)();
+        loadEbotBlocks(this);
+    }    
+    
+    
+    
 }    
 

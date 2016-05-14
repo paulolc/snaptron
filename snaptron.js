@@ -10,7 +10,91 @@ var GLOBALS = {
     ebots: ebot.ebots
 }
 
+
+//////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+
+
+var mineflayer = require('mineflayer');
+var Vec3 = mineflayer.vec3.Vec3;
+var zeroVec = new Vec3(0, 0, 0);
+
+var bot = mineflayer.createBot({
+  username: 'CoderDojoLX',
+  verbose: true
+});
+
+bot.on('message',function(jsonMsg){
+    console.log('message: "' + JSON.stringify( jsonMsg ) + "'");    
+});
+
+bot.on('chat', function(username, message) {
+  if(username === bot.username) return;
+  console.log('bot chat:' + message);
+  bot.chat(message);
+});
+*/
+
+/*
+
+function equip(destination,item,done)
+{
+     if (item!=null && item!=true)
+     {
+          bot.equip(item, destination, function(err)
+          {
+               if (err)
+               {
+                    console.log("unable to equip " + item.name);
+                    //console.log(err.stack);
+                    setTimeout(function(){done(false);},200);
+               }
+               else
+               {
+                    console.log("equipped " + item.name);
+                    setTimeout(done,200);
+               }
+          });
+     }
+     else if(item==null)
+     {
+          console.log("I have no such item");// change this maybe : yes : it should be fixed by : either it's a block you can break by hand, either go get a block... (and if it's to build : careful you might die... : figure a way out)
+          done();
+     }
+     else if(item==true) // already equipped
+     {
+          done();
+     }    
+}
+
+function relativePos( x, y, z ){
+    var vec = new Vec3(x,y,z);
+    return bot.entity.position.plus(vec);
+}
+
+function blockAtRelativePos( x, y, z ){
+    var vec = new Vec3(x,y,z);
+    return bot.blockAt( bot.entity.position.plus(vec) ) ;
+}
+
+*/
+//////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
 log('Starting snaptron controller...');
+
+const PROXIMITY_SENSOR_VARNAME = 'sensor de proximidade';
+const LIGHT_SENSOR_VARNAME='sensor de luz';
+const BUTTON_SENSOR_VARNAME = 'botão';
+const VARNAME_BY_SENSOR = { 
+    'proximity': PROXIMITY_SENSOR_VARNAME,
+    'light': LIGHT_SENSOR_VARNAME,
+    'button': BUTTON_SENSOR_VARNAME
+};
+
+
 
 const SPRITES_EBOTS_SYNC_PERIOD_IN_MS = 2000;
 const LAST_OPENED_PROJECT_NAME = mainWindow.LAST_OPENED_PROJECT_NAME;
@@ -100,6 +184,7 @@ function syncEbotsWithSprites(){
             if( ebot.status !== 'offline' ){
                 ebot.reconnect = true;
                 ebotsByPort[ ebotIdx ] = ebot;
+                
             }    
 
             if( sprite ){        
@@ -110,8 +195,13 @@ function syncEbotsWithSprites(){
                 }
             } else {
                 if( ebot.status !== 'offline' ){
+                    ebot.on('message',function(data){
+                        console.log( 'ebot: received message: ' + JSON.stringify(data) );
+                        sprite.variables.setVar( VARNAME_BY_SENSOR[ data.sensor ] , data.value);
+                    });
                     sprite = ide_morph.createNewSprite( ebot.port );     
-                    sprite.variables.addVar( 'ebot-port', ebot.port  );
+                    addVars(sprite, ['ebot-port', LIGHT_SENSOR_VARNAME, PROXIMITY_SENSOR_VARNAME, BUTTON_SENSOR_VARNAME ])
+                    sprite.variables.setVar( 'ebot-port', ebot.port  );
                     sprite.lastStatus = "";
                     setSpriteStatus( sprite , ebot.status );       
                 }
@@ -122,6 +212,14 @@ function syncEbotsWithSprites(){
         
         if( ebotPorts.length === 0 ){
             ide_morph.connectMbot();
+        }
+
+        function addVars( sprite, varsToAdd ){
+            varsToAdd.forEach( function( varToAdd ){
+                    sprite.variables.addVar( varToAdd , -1  );                
+            });
+            ide_morph.flushBlocksCache('variables');
+            ide_morph.refreshPalette();            
         }
 
         function getSpriteVar( sprite,varName ){

@@ -224,6 +224,11 @@ function ElectronBotSlave(){
                     ebot.emit('command', data.command, data.parameters);
                 });
 
+                ebot.on('sensor',function(data){
+                    console.log( "sensor: " + data.sensor + " value: " + data.value );
+                    ipcRenderer.send( myId, 'board-message', data);
+                });
+
                 event.sender.send( myId, 'board-ready' );            
                 ebot.emit('ready');
 

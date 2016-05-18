@@ -1,35 +1,21 @@
 {
-  "name": "snaptron",
-  "version": "0.0.1",
-  "description": "It's snap, the visual, blocks based programming language stuffed in electron to control mbots",
-  "main": "startup.js",
-  "dependencies": {
-    "electron-prebuilt": "^1.1.0",
-    "johnny-five": "^0.9.19",
-    "node-localstorage": "^1.1.2",
-    "serialport": "^3.1.2"
-  },
   "devDependencies": {
+    "electron-builder": "3.17.1",
+    "electron-prebuilt": "^1.1.0",
+    "rimraf": "^2.5.2",
     "node-gyp": "^3.3.1",
     "node-pre-gyp": "^0.6.28"
   },
   "scripts": {
-    "install": "node-pre-gyp install --fallback-to-build --runtime=electron --target=1.1.0 --target_arch=x64 --directory=node_modules/serialport/ --update-binary --dist-url=https://atom.io/download/atom-shell",
-    "start": "electron ."
+    "postinstall": "install-app-deps",
+    "compile": "node-pre-gyp install --fallback-to-build --runtime=electron --target=1.1.0 --target_arch=x64 --directory=app/node_modules/serialport/ --update-binary --dist-url=https://atom.io/download/atom-shell",
+    "start": "npm install && npm run compile && electron ./app",
+    "clean": "rimraf dist",
+    "dist": "npm install && npm run compile && build  --platform win32 --arch x64"    
   },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/paulolc/snaptron.git"
-  },
-  "keywords": [
-    "snap",
-    "nodebots",
-    "blocks",
-    "visual",
-    "programming",
-    "language"
-  ],
-  "author": "plcarvalho@gmail.com",
-  "license": "ISC",
-  "build": {}
+  "build": {
+      "win": {
+          "noMsi": false          
+      }
+  }
 }

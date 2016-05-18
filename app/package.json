@@ -1,0 +1,25 @@
+{
+  "name": "snaptron",
+  "version": "0.1.0",
+  "description": "It's snap, the visual, blocks based programming language stuffed in electron to control mbots",
+  "main": "startup.js",
+  "dependencies": {
+    "johnny-five": "^0.9.19",
+    "node-localstorage": "^1.1.2",
+    "serialport": "^3.1.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/paulolc/snaptron.git"
+  },
+  "keywords": [
+    "snap",
+    "nodebots",
+    "blocks",
+    "visual",
+    "programming",
+    "language"
+  ],
+  "author": "plcarvalho@gmail.com",
+  "license": "ISC"
+}

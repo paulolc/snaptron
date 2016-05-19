@@ -1,21 +1,26 @@
 {
   "devDependencies": {
-    "electron-builder": "3.17.1",
-    "electron-prebuilt": "^1.1.0",
+    "electron-builder": "next",
+    "electron-prebuilt": "1.1.0",
     "rimraf": "^2.5.2",
     "node-gyp": "^3.3.1",
     "node-pre-gyp": "^0.6.28"
   },
   "scripts": {
-    "postinstall": "install-app-deps",
+    "install": "install-app-deps",
     "compile": "node-pre-gyp install --fallback-to-build --runtime=electron --target=1.1.0 --target_arch=x64 --directory=app/node_modules/serialport/ --update-binary --dist-url=https://atom.io/download/atom-shell",
-    "start": "npm install && npm run compile && electron ./app",
-    "clean": "rimraf dist",
-    "dist": "npm install && npm run compile && build  --platform win32 --arch x64"    
+    "postinstall": "npm run compile",
+    "start": "electron ./app",
+    "clean": "rimraf -f dist",
+    "cleanmodules": "rimraf -f app/node_modules && rimraf -f node_modules",
+    "cleanall": "npm run clean && npm run cleanmodules",
+    "dist": "npm install && npm run compile && build"    
   },
   "build": {
       "win": {
-          "noMsi": false          
+          "iconUrl": "https://media.githubusercontent.com/media/develar/onshape-desktop-shell/master/build/icon.ico",
+          "title": "Snaptron",
+          "msi": false          
       }
   }
 }

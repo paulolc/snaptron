@@ -1,17 +1,21 @@
 'use strict';
+if(require('electron-squirrel-startup')) return;
+const electron = require('electron');
+const ipcMain = electron.ipcMain;
+const app = electron.app;  // Module to control application life.
+
 const DEBUG = ( process.env.SNAPTRON_DEBUG === 'true' ? true : false );
 const LAST_OPENED_PROJECT_NAME = '(last opened project)';
-const electron = require('electron');
-const app = electron.app;  // Module to control application life.
+
 const BrowserWindow = electron.BrowserWindow;  // Module to create native browser window
 const log = console.log;
-const ipcMain = require('electron').ipcMain;
-
-
 
 ipcMain.on('snaptron-logger', function( event, msg){
     console.log( msg );
 });
+
+
+/*
 
 var handleStartupEvent = function() {
   if (process.platform !== 'win32') {
@@ -53,7 +57,7 @@ var handleStartupEvent = function() {
 };
 
 handleStartupEvent();
-
+*/
 
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.

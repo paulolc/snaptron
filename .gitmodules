@@ -1,0 +1,3 @@
+[submodule "app/snap"]
+	path = app/snap
+	url = https://github.com/jmoenig/Snap--Build-Your-Own-Blocks

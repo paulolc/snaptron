@@ -256,8 +256,8 @@ IDE_Morph.prototype.openIn = function (world) {
     var hash, usr, myself = this, urlLanguage = null;
 
     // get persistent user data, if any
-    if (tempStorage) {
-        usr = tempStorage['-snap-user'];
+    if (localStorage) {
+        usr = localStorage['-snap-user'];
         if (usr) {
             usr = SnapCloud.parseResponse(usr)[0];
             if (usr) {
@@ -344,7 +344,8 @@ IDE_Morph.prototype.openIn = function (world) {
                 )) {
                 this.droppedText(hash);
             } else {
-                myself.getURL(hash, function( responseText ) {
+                myself.getURL(hash, function( err, responseText ) {
+                    if(err){ console.log(err); return; }
                     myself.droppedText( responseText );
                 });
             }
@@ -357,7 +358,11 @@ IDE_Morph.prototype.openIn = function (world) {
             if (hash.substr(0, 8) === '<project>') {
                 this.rawOpenProjectString(hash);
             } else {
-                this.rawOpenProjectString(getURL(hash));
+                myself.getURL(hash, function( err, responseText ) {
+                    if(err){ console.log(err); return; }
+                    this.rawOpenProjectString( responseText );
+                });
+                
             }
             this.toggleAppMode(true);
             this.runScripts();
@@ -1977,22 +1982,22 @@ IDE_Morph.prototype.applySavedSettings = function () {
 };
 
 IDE_Morph.prototype.saveSetting = function (key, value) {
-    if (tempStorage) {
-        tempStorage['-snap-setting-' + key] = value;
+    if (localStorage) {
+        localStorage['-snap-setting-' + key] = value;
     }
     saveStorage()
 };
 
 IDE_Morph.prototype.getSetting = function (key) {
-    if (tempStorage) {
-        return tempStorage['-snap-setting-' + key];
+    if (localStorage) {
+        return localStorage['-snap-setting-' + key];
     }
     return null;
 };
 
 IDE_Morph.prototype.removeSetting = function (key) {
-    if (tempStorage) {
-        delete tempStorage['-snap-setting-' + key];
+    if (localStorage) {
+        delete localStorage['-snap-setting-' + key];
     }
     saveStorage();
 };
@@ -2545,6 +2550,7 @@ IDE_Morph.prototype.serialSelectMenu = function () {
     );
     menu.popup(world, pos);
 };
+*/
 
 IDE_Morph.prototype.settingsMenu = function () {
     var menu,
@@ -2818,7 +2824,6 @@ IDE_Morph.prototype.settingsMenu = function () {
     );
     menu.popup(world, pos);
 };
-*/
 
 
 IDE_Morph.prototype.projectMenu = function () {
@@ -2972,9 +2977,11 @@ IDE_Morph.prototype.projectMenu = function () {
     menu.addItem(
         'Import tools',
         function () {
-            myself.getURL('tools.xml', function( err, responseText ){
+            var url = myself.resourceURL('','tools.xml');
+            myself.getURL(url, function( err, responseText ){
                 if(err){
                     //TODO: Display error message
+                    console.log("Error importing tools.xml: " + err);
                     return;
                 }
                 myself.droppedText(
@@ -2992,7 +2999,7 @@ IDE_Morph.prototype.projectMenu = function () {
             'libraries',
             function loadLib(file, name) {                
                 var url = myself.resourceURL('libraries', file);
-                myself.getURL( url, function( responseText ) { 
+                myself.getURL( url, function( err, responseText ) { 
                     myself.droppedText( responseText, name); 
                 });
             }
@@ -3376,7 +3383,7 @@ IDE_Morph.prototype.rawSaveProject = function (name) {
         this.setProjectName(name);
         if (Process.prototype.isCatchingErrors) {
             try {
-                tempStorage['-snap-project-' + name]
+                localStorage['-snap-project-' + name]
                     = str = this.serializer.serialize(this.stage);
                 this.setURL('#open:' + str);
                 this.showMessage('Saved!', 1);
@@ -3385,7 +3392,7 @@ IDE_Morph.prototype.rawSaveProject = function (name) {
                 this.showMessage('Save failed: ' + err);
             }
         } else {
-            tempStorage['-snap-project-' + name]
+            localStorage['-snap-project-' + name]
                 = str = this.serializer.serialize(this.stage);
             this.setURL('#open:' + str);
             this.showMessage('Saved!', 1);
@@ -4007,7 +4014,7 @@ IDE_Morph.prototype.openProject = function (name) {
     if (name) {
         this.showMessage('opening project\n' + name);
         this.setProjectName(name);
-        str = tempStorage['-snap-project-' + name];
+        str = localStorage['-snap-project-' + name];
         this.openProjectString(str);
         this.setURL('#open:' + str);
     }
@@ -4483,7 +4490,7 @@ IDE_Morph.prototype.languageMenu = function () {
 
 IDE_Morph.prototype.setLanguage = function (lang, callback) {
     var translation = document.getElementById('language'),
-        src = 'lang/lang-' + lang + '.js',
+        src = this.resourceURL('', 'lang-' + lang + '.js'),
         myself = this;
     SnapTranslator.unload();
     if (translation) {
@@ -4738,7 +4745,7 @@ IDE_Morph.prototype.initializeCloud = function () {
                                 password: pwh
                             }
                         );
-                        tempStorage['-snap-user'] = str;
+                        localStorage['-snap-user'] = str;
                         saveStorage();
                     }
                     myself.source = 'cloud';
@@ -4766,7 +4773,7 @@ IDE_Morph.prototype.createCloudAccount = function () {
         world = this.world();
 /*
     // force-logout, commented out for now:
-    delete tempStorage['-snap-user'];
+    delete localStorage['-snap-user'];
     SnapCloud.clear();
 */
     new DialogBoxMorph(
@@ -4807,7 +4814,7 @@ IDE_Morph.prototype.resetCloudPassword = function () {
         world = this.world();
 /*
     // force-logout, commented out for now:
-    delete tempStorage['-snap-user'];
+    delete localStorage['-snap-user'];
     SnapCloud.clear();
 */
     new DialogBoxMorph(
@@ -4875,7 +4882,7 @@ IDE_Morph.prototype.changeCloudPassword = function () {
 
 IDE_Morph.prototype.logout = function () {
     var myself = this;
-    delete tempStorage['-snap-user'];
+    delete localStorage['-snap-user'];
     saveStorage();
     SnapCloud.logout(
         function () {
@@ -5117,7 +5124,8 @@ IDE_Morph.prototype.getURL = function (url, cb) {
     request.onload = function(){
         if (request.readyState === 4) {
             if (request.status === 200) {
-                cb( err, request.responseText );
+                cb( null, request.responseText );
+//                cb( request.responseText );
                 return;
             } else {
                 err = new Error( 'unable to retrieve ' + url );                    
@@ -5549,7 +5557,7 @@ ProjectDialogMorph.prototype.arrangeProjectList = function () {
             }
             if (myself.task === 'open') {
 
-                src = tempStorage['-snap-project-' + item.name];
+                src = localStorage['-snap-project-' + item.name];
                 xml = myself.ide.serializer.parse(src);
 
                 myself.notesText.text = xml.childNamed('notes').contents
@@ -5572,7 +5580,7 @@ ProjectDialogMorph.prototype.arrangeProjectList = function () {
             }
             myself.ide.getURL( myself.ide.resourceURL('Examples', item.file), function( err, src ){ 
                 if(err){
-                    //TODO: Display error
+                    console.log( err );
                     return;
                 }
                 xml = myself.ide.serializer.parse(src);
@@ -5606,8 +5614,8 @@ ProjectDialogMorph.prototype.arrangeProjectList = function () {
 ProjectDialogMorph.prototype.getLocalProjectList = function () {
     var stored, name, dta,
         projects = [];
-    for (stored in tempStorage) {
-        if (Object.prototype.hasOwnProperty.call(tempStorage, stored)
+    for (stored in localStorage) {
+        if (Object.prototype.hasOwnProperty.call(localStorage, stored)
                 && stored.substr(0, 14) === '-snap-project-') {
             name = stored.substr(14);
             dta = {
@@ -5727,7 +5735,8 @@ ProjectDialogMorph.prototype.openProject = function () {
         // Note "file" is a property of the parseResourceFile function.
         self.ide.getURL( self.ide.resourceURL('Examples', proj.file), function( err, src ){
             if(err){ 
-                //TODO: Display error loading examples 
+                //TODO: Display error loading examples
+                console.log(err); 
                 return;
             }
             self.ide.openProjectString(src);
@@ -5896,7 +5905,7 @@ ProjectDialogMorph.prototype.deleteProject = function () {
                 ) + '\n"' + name + '"?',
                 'Delete Project',
                 function () {
-                    delete tempStorage['-snap-project-' + name];
+                    delete localStorage['-snap-project-' + name];
                     saveStorage();
                     myself.setSource(myself.source); // refresh list
                 }

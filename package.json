@@ -14,13 +14,13 @@
     "clean": "rimraf -f dist",
     "cleanmodules": "rimraf -f app/node_modules && rimraf -f node_modules",
     "cleanall": "npm run clean && npm run cleanmodules",
-    "dist": "npm install && npm run compile && build"    
+    "dist": "npm install && npm run compile && build"
   },
   "build": {
-      "win": {
-          "iconUrl": "https://media.githubusercontent.com/media/develar/onshape-desktop-shell/master/build/icon.ico",
-          "title": "Snaptron",
-          "msi": false          
-      }
+    "win": {
+      "iconUrl": "https://media.githubusercontent.com/media/develar/onshape-desktop-shell/master/build/icon.ico",
+      "title": "Snaptron",
+      "msi": false
+    }
   }
 }

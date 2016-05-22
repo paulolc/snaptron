@@ -150,8 +150,6 @@ function ElectronBotSlave(){
     var ebot = this;
     this.board = null;
 
-
-
     var currTick = 0;
     var lastTick = -1;
     var boardPing = null;
@@ -159,7 +157,6 @@ function ElectronBotSlave(){
     var error = null;
     var myId;
     var startTime = new Date().getTime();
-
 
     ipcRenderer.on('connect', function(event, id, portname) {
         document.title = portname;
@@ -201,7 +198,7 @@ function ElectronBotSlave(){
 
         function connectBoard(){
             
-            ebot.board = new five.Board( { port: port } );    
+            ebot.board = new five.Board( { port: port , repl: false, debug: false  } );    
 
             ebot.board.on("error", function( err ) {
                 console.log("error: " + util.inspect(err) );

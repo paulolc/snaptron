@@ -3,6 +3,8 @@ const remote = require('electron').remote;
 const Menu = remote.Menu;
 const MenuItem = remote.MenuItem;
 
+
+var tempStorage = null;
 var mainWindow = remote.getCurrentWindow();
 const ipcRenderer = require('electron').ipcRenderer;
 var ebot = require('./ebot');
@@ -28,32 +30,43 @@ const SPRITES_EBOTS_SYNC_PERIOD_IN_MS = 2000;
 const LAST_OPENED_PROJECT_NAME = mainWindow.LAST_OPENED_PROJECT_NAME;
 const SETTINGS_STORAGE_ID = 'settings';
 const USER_SETTINGS_FILENAME = '.snaptron';
+const MBOT_COSTUMES_PATH = 'mbot/';
 const MBOT_STATUS_COSTUMES_IMAGES = { 
-    offline : { filename: "mbot-gray.png", canvas: null }, 
-    connected : { filename: "mbot-green.png", canvas: null }, 
-    reconnecting: { filename: "mbot-orange.png", canvas: null },  
-    connecting: { filename: "mbot-orange.png", canvas: null },  
-    disconnected:  { filename: "mbot-red.png", canvas: null },
+    offline : { filename: MBOT_COSTUMES_PATH + "mbot-gray.png", canvas: null }, 
+    connected : { filename: MBOT_COSTUMES_PATH + "mbot-green.png", canvas: null }, 
+    reconnecting: { filename: MBOT_COSTUMES_PATH + "mbot-orange.png", canvas: null },  
+    connecting: { filename: MBOT_COSTUMES_PATH + "mbot-orange.png", canvas: null },  
+    disconnected:  { filename: MBOT_COSTUMES_PATH + "mbot-red.png", canvas: null },
 };
-const MBOT_DIR = 'mbot';
+const BOARD_COSTUMES_DIR = '..';
 
 if (typeof localStorage === "undefined" || localStorage === null) {
     var LocalStorage = require('node-localstorage').LocalStorage;
     var userSettingsFile = os.homedir() + '/' + USER_SETTINGS_FILENAME;
-    localStorage = new LocalStorage(userSettingsFile);
+//    localStorage = new LocalStorage(userSettingsFile);
+    localStorage = (new LocalStorage(userSettingsFile)).getItem( SETTINGS_STORAGE_ID ) ;
     log('User settings loaded from: "'+userSettingsFile+'"');
 }
 
+/*
 var tempStorage = JSON.parse( localStorage.getItem( SETTINGS_STORAGE_ID ));
 if( !tempStorage ){ tempStorage = {}; }
 ( tempStorage[ '-snap-setting-design' ]  ? "" : tempStorage[ '-snap-setting-design' ] =  'flat' );
 ( tempStorage[ '-snap-setting-language'] ? "" : tempStorage[ '-snap-setting-language'] =  'pt' );
+*/
 
-var world = new WorldMorph(document.getElementById('world'));
-var ide_morph = new IDE_Morph();
+if( !localStorage ){ localStorage = {}; }
+( localStorage[ '-snap-setting-design' ]  ? "" : localStorage[ '-snap-setting-design' ] =  'flat' );
+( localStorage[ '-snap-setting-language'] ? "" : localStorage[ '-snap-setting-language'] =  'pt' );
 
 setWindowMenu();
 overrideSnapFunctions();
+
+var world = new WorldMorph(document.getElementById('world'));
+var ide_morph = new IDE_Morph();
+ide_morph.logoURL = 'icons/snap4mbot32x32.png';
+
+
 
 ide_morph.loadAllCostumes( function() {
     GLOBALS.syncEbotsWithSpritesInterval = setInterval( syncEbotsWithSprites, SPRITES_EBOTS_SYNC_PERIOD_IN_MS);
@@ -176,7 +189,7 @@ function syncEbotsWithSprites(){
 
 
 function overrideSnapFunctions(){
-    
+        
     SpriteMorph.prototype.sendCommand = function( command ){
         console.log( "Sending command '"+command+"' to: '" + this.name + "'");
         window.ebot.ebots[ this.name ].dispatcher.send( 'command', command );
@@ -211,7 +224,7 @@ function overrideSnapFunctions(){
         if( ! this.ebotsLoading ){                
             this.ebotsLoading = true;
             msg = thisIdeMorph.showMessage('Searching for connected bots');
-            ebot.loadBots( "./mbot.js" , function( readyEbots ) {
+            ebot.loadBots(  __dirname + "/mbot.js" , function( readyEbots ) {
                 console.log("Ebots scan finished. All connected ebots loaded.");
                 thisIdeMorph.ebotsLoading = false;
                 msg.destroy();
@@ -225,7 +238,7 @@ function overrideSnapFunctions(){
         var imgLoadedCount = 0;
         imgKeys.forEach( function( imgKey ){
            var imgData =  MBOT_STATUS_COSTUMES_IMAGES[ imgKey ];
-           thisIdeMorph.loadImg( thisIdeMorph.resourceURL( MBOT_DIR, imgData.filename ), function( imgCanvas ){
+           thisIdeMorph.loadImg( thisIdeMorph.resourceURL( BOARD_COSTUMES_DIR, imgData.filename ), function( imgCanvas ){
                 thisIdeMorph.hasChangedMedia = true;                                   
                 imgData.canvas = imgCanvas; 
                 imgData.costume = new Costume( imgData.canvas, imgKey );
@@ -272,6 +285,36 @@ function overrideSnapFunctions(){
         this.add(this.spriteBarHandle);           
     }
       
+
+    IDE_Morph.prototype.saveSetting = function (key, value) {
+        if (localStorage) {
+            localStorage['-snap-setting-' + key] = value;
+        }
+        saveStorage()
+    };
+
+    IDE_Morph.prototype.getSetting = function (key) {
+        if (localStorage) {
+            return localStorage['-snap-setting-' + key];
+        }
+        return null;
+    };
+
+    IDE_Morph.prototype.removeSetting = function (key) {
+        if (localStorage) {
+            delete localStorage['-snap-setting-' + key];
+        }
+        saveStorage();
+    };
+
+    IDE_Morph.prototype.resourceURL = function (folder, file) {
+        // Give a path a file in subfolders.
+        // Method can be easily overridden if running in a custom location.
+        var resourceURL = 'snap/' + folder + '/' + file;
+        console.log( "resourceURL: " + resourceURL);
+        return resourceURL;
+    };
+    
     
 }  
 

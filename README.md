@@ -15,7 +15,7 @@ Snaptron's main features:
 You can install and run snaptron by running
 
 ```bash
-git clone https://github.com/paulolc/snaptron.git
+git clone --recursive https://github.com/paulolc/snaptron.git
 npm install
 npm start
 ```

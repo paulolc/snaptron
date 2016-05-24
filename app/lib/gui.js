@@ -221,7 +221,7 @@ IDE_Morph.prototype.init = function (isAutoFill) {
     this.projectName = '';
     this.projectNotes = '';
 
-    this.logoURL = 'icons/snap4mbot32x32.png';
+    this.logoURL = 'icons/snaptron32x32.png';
     this.logo = null;
     this.controlBar = null;
     this.categories = null;

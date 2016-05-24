@@ -64,7 +64,7 @@ overrideSnapFunctions();
 
 var world = new WorldMorph(document.getElementById('world'));
 var ide_morph = new IDE_Morph();
-ide_morph.logoURL = 'icons/snap4mbot32x32.png';
+ide_morph.logoURL = 'icons/snaptron32x32.png';
 
 
 

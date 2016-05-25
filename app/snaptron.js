@@ -3,7 +3,6 @@ const remote = require('electron').remote;
 const Menu = remote.Menu;
 const MenuItem = remote.MenuItem;
 
-
 var tempStorage = null;
 var mainWindow = remote.getCurrentWindow();
 const ipcRenderer = require('electron').ipcRenderer;
@@ -11,7 +10,6 @@ var ebot = require('./ebot');
 var GLOBALS = {
     ebots: ebot.ebots
 };
-
 
 log('Starting snaptron controller...');
 
@@ -23,8 +21,6 @@ const VARNAME_BY_SENSOR = {
     'light': LIGHT_SENSOR_VARNAME,
     'button': BUTTON_SENSOR_VARNAME
 };
-
-
 
 const SPRITES_EBOTS_SYNC_PERIOD_IN_MS = 2000;
 const LAST_OPENED_PROJECT_NAME = mainWindow.LAST_OPENED_PROJECT_NAME;
@@ -43,17 +39,9 @@ const BOARD_COSTUMES_DIR = '..';
 if (typeof localStorage === "undefined" || localStorage === null) {
     var LocalStorage = require('node-localstorage').LocalStorage;
     var userSettingsFile = os.homedir() + '/' + USER_SETTINGS_FILENAME;
-//    localStorage = new LocalStorage(userSettingsFile);
     localStorage = (new LocalStorage(userSettingsFile)).getItem( SETTINGS_STORAGE_ID ) ;
     log('User settings loaded from: "'+userSettingsFile+'"');
 }
-
-/*
-var tempStorage = JSON.parse( localStorage.getItem( SETTINGS_STORAGE_ID ));
-if( !tempStorage ){ tempStorage = {}; }
-( tempStorage[ '-snap-setting-design' ]  ? "" : tempStorage[ '-snap-setting-design' ] =  'flat' );
-( tempStorage[ '-snap-setting-language'] ? "" : tempStorage[ '-snap-setting-language'] =  'pt' );
-*/
 
 if( !localStorage ){ localStorage = {}; }
 ( localStorage[ '-snap-setting-design' ]  ? "" : localStorage[ '-snap-setting-design' ] =  'flat' );
@@ -65,8 +53,6 @@ overrideSnapFunctions();
 var world = new WorldMorph(document.getElementById('world'));
 var ide_morph = new IDE_Morph();
 ide_morph.logoURL = 'icons/snaptron32x32.png';
-
-
 
 ide_morph.loadAllCostumes( function() {
     GLOBALS.syncEbotsWithSpritesInterval = setInterval( syncEbotsWithSprites, SPRITES_EBOTS_SYNC_PERIOD_IN_MS);
@@ -148,7 +134,6 @@ function syncEbotsWithSprites(){
                 }
             }
                     
-            //console.log( "     " + ebot.port+": " + ebot.status );        
         });
         
         if( ebotPorts.length === 0 ){

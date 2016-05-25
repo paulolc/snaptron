@@ -31,7 +31,7 @@ function ElectronBot( port , jsfile ){
     this.process = null;
     this.dispatcher = null;
     this.reconnect = false;
-    this.type = ElectronBot.BOARD_TYPES.UNKOWN;  
+    this.type = ElectronBot.BOARD_TYPES.UNKNOWN;  
     this.status = 'offline';
 
 

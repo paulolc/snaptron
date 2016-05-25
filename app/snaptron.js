@@ -26,15 +26,38 @@ const SPRITES_EBOTS_SYNC_PERIOD_IN_MS = 2000;
 const LAST_OPENED_PROJECT_NAME = mainWindow.LAST_OPENED_PROJECT_NAME;
 const SETTINGS_STORAGE_ID = 'settings';
 const USER_SETTINGS_FILENAME = '.snaptron';
-const MBOT_COSTUMES_PATH = 'mbot/';
-const MBOT_STATUS_COSTUMES_IMAGES = { 
-    offline : { filename: MBOT_COSTUMES_PATH + "mbot-gray.png", canvas: null }, 
-    connected : { filename: MBOT_COSTUMES_PATH + "mbot-green.png", canvas: null }, 
-    reconnecting: { filename: MBOT_COSTUMES_PATH + "mbot-orange.png", canvas: null },  
-    connecting: { filename: MBOT_COSTUMES_PATH + "mbot-orange.png", canvas: null },  
-    disconnected:  { filename: MBOT_COSTUMES_PATH + "mbot-red.png", canvas: null },
-};
+
 const BOARD_COSTUMES_DIR = '..';
+
+var BOARDS_INFO = {
+    mbot: {
+        costumes: {
+            offline : { filename: "mbot-gray.png", canvas: null }, 
+            connected : { filename: "mbot-green.png", canvas: null }, 
+            reconnecting: { filename: "mbot-orange.png", canvas: null },  
+            connecting: { filename: "mbot-orange.png", canvas: null },  
+            disconnected:  { filename: "mbot-red.png", canvas: null },
+        }
+    },
+    uno: {
+        costumes: {
+            offline : { filename: "uno-gray.png", canvas: null }, 
+            connected : { filename: "uno-green.png", canvas: null }, 
+            reconnecting: { filename: "uno-orange.png", canvas: null },  
+            connecting: { filename: "uno-orange.png", canvas: null },  
+            disconnected:  { filename: "uno-red.png", canvas: null },
+        }        
+    },
+    default: {
+        costumes: {
+            offline : { filename: "uno-gray.png", canvas: null }, 
+            connected : { filename: "uno-green.png", canvas: null }, 
+            reconnecting: { filename: "uno-orange.png", canvas: null },  
+            connecting: { filename: "uno-orange.png", canvas: null },  
+            disconnected:  { filename: "uno-red.png", canvas: null },
+        }        
+    }
+}
 
 if (typeof localStorage === "undefined" || localStorage === null) {
     var LocalStorage = require('node-localstorage').LocalStorage;
@@ -61,12 +84,7 @@ ide_morph.loadAllCostumes( function() {
 mainWindow.on( 'close', function(e) {
   log('LAST_OPENED_PROJECT_NAME: ' + LAST_OPENED_PROJECT_NAME);
   ide_morph.globalVariables.vars.projectName = new Variable( ide_morph.projectName );
-  var ebotPorts = Object.keys( GLOBALS.ebots );
-  ebotPorts.forEach( function( ebotPort ){
-    var ebotIdx = ebotPort;
-    var ebot = GLOBALS.ebots[ ebotIdx ];    
-    ebot.offline();
-  });  
+  disconnectAllBoards();
   clearInterval( GLOBALS.syncEbotsWithSpritesInterval);
   syncEbotsWithSprites();
   ide_morph.rawSaveProject(LAST_OPENED_PROJECT_NAME);  
@@ -90,8 +108,22 @@ function log( text ){
         ipcRenderer.send('snaptron-logger', text );
 }
 
+function getBoardOfSprite( sprite ) {
+    return GLOBALS.ebots[ sprite.variables.getVar('ebot-port') ];
+}
+ 
+function disconnectAllBoards(){
+    var ebotPorts = Object.keys( GLOBALS.ebots )
+    ebotPorts.forEach( function( ebotPort ){
+        var ebotIdx = ebotPort;
+        var ebot = GLOBALS.ebots[ ebotIdx ];    
+        ebot.offline();
+    }); 
+    GLOBALS.ebots = {} 
+} 
+ 
+ 
 function syncEbotsWithSprites(){
-        //console.log( new Date().getTime() );
         var ebotsByPort = {};
         var spritesByPort = {};
         var ebotPorts = Object.keys( GLOBALS.ebots );
@@ -136,10 +168,12 @@ function syncEbotsWithSprites(){
                     
         });
         
+        /* Searching for ebots on startup or on new project should be optional
         if( ebotPorts.length === 0 ){
             ide_morph.connectMbot();
         }
-
+        */
+        
         function addVars( sprite, varsToAdd ){
             varsToAdd.forEach( function( varToAdd ){
                     sprite.variables.addVar( varToAdd , -1  );                
@@ -164,12 +198,19 @@ function syncEbotsWithSprites(){
             var loadedStatusCostume;
             sprite.doSwitchToCostume( status );
             if( sprite.getCostumeIdx() === 0 ){
-                loadedStatusCostume = MBOT_STATUS_COSTUMES_IMAGES[ status ].costume;
+                loadedStatusCostume = getCostumeBySpriteStatus( sprite, status); ;
                 if( loadedStatusCostume ) {
                     sprite.addCostume( loadedStatusCostume );                
                 }                            
             }            
         }
+        
+        function getCostumeBySpriteStatus( sprite, status ){
+            var boardOfSprite = getBoardOfSprite( sprite );
+            var boardType = ( boardOfSprite !== null ? boardOfSprite.type : "default" );
+            return BOARDS_INFO[ boardType ].costumes[ status ].costume;
+        }
+        
 }
 
 
@@ -216,25 +257,34 @@ function overrideSnapFunctions(){
             });
         }
     };
-      
+   
     IDE_Morph.prototype.loadAllCostumes = function( callback ){
         var thisIdeMorph = this;    
-        var imgKeys = Object.keys( MBOT_STATUS_COSTUMES_IMAGES );
-        var imgLoadedCount = 0;
-        imgKeys.forEach( function( imgKey ){
-           var imgData =  MBOT_STATUS_COSTUMES_IMAGES[ imgKey ];
-           thisIdeMorph.loadImg( thisIdeMorph.resourceURL( BOARD_COSTUMES_DIR, imgData.filename ), function( imgCanvas ){
-                thisIdeMorph.hasChangedMedia = true;                                   
-                imgData.canvas = imgCanvas; 
-                imgData.costume = new Costume( imgData.canvas, imgKey );
-                imgLoadedCount++;
-                if( imgLoadedCount >= imgKeys.length){
-                    callback();
-                }
-           });           
+        var boardTypes = Object.keys( BOARDS_INFO );
+
+        boardTypes.forEach( function( boardType ){ 
+           var costumesData = BOARDS_INFO[ boardType ].costumes ;
+           if( ! costumesData ){  return; }
+           var costumeImgKeys = Object.keys( costumesData );
+           var imgLoadedCount = 0;
+
+           costumeImgKeys.forEach( function( costumeImgKey ){
+               var imgData = costumesData[ costumeImgKey ];
+               var imgPath = "plugins/" + boardType + "/costumes/" + imgData.filename;
+               thisIdeMorph.loadImg( thisIdeMorph.resourceURL( BOARD_COSTUMES_DIR , imgPath ), function( imgCanvas ){
+                        thisIdeMorph.hasChangedMedia = true;                                   
+                        imgData.canvas = imgCanvas; 
+                        imgData.costume = new Costume( imgData.canvas, costumeImgKey );
+                        imgLoadedCount++;
+                        if( imgLoadedCount >= costumeImgKeys.length){
+                            callback();
+                        }
+                });           
+           });
         });
+
     }
-  
+
     IDE_Morph.prototype.createNewSprite = function( spriteName ){        
         var sprite = new SpriteMorph(this.globalVariables);            
         
@@ -258,6 +308,7 @@ function overrideSnapFunctions(){
     var overridenNewProjectFunction = IDE_Morph.prototype.newProject;
         
     IDE_Morph.prototype.newProject = function(){
+        disconnectAllBoards();
         overridenNewProjectFunction.bind(this)();
         loadEbotBlocks(this);
     }    

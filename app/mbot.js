@@ -88,7 +88,7 @@ ebot.on('ready', function(){
         controller: "FIRMATA",
     });
 
-
+/*
     buttonSensor = new five.Sensor({
         pin: "A7",
     });
@@ -137,6 +137,9 @@ ebot.on('ready', function(){
     lightSensor.on("data", function() {
         ebot.emit('sensor',{sensor: 'light', value: this.value});
     });
+
+    */
+
 
 });
 

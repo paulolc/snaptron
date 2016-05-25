@@ -8,15 +8,17 @@ const EventEmitter = require('events');
 const ipcRenderer = require('electron').ipcRenderer;
 const five = require("johnny-five");
 const fs = require('fs');
+const Firmata = require('firmata');
+var serialport = require("serialport");
+
 
 const SERIAL_PROBE_TIMEOUT_IN_MS = 15000;
 const FIRMATA_GETVERSION_CMD = 0xF9;
-const BOARD_WATCHDOG_INTERVAL_IN_MS = 2000;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const TIME_BETWEEN_RECONNECT_ATTEMPTS_IN_MS = 5000;
-const BOARD_PING_PERIOD_IN_MS = 1000;
+const BOARD_PING_PERIOD_IN_MS = 3000;
+const BOARD_WATCHDOG_INTERVAL_IN_MS = 4000;
 
-var serialport = require("serialport");
 var SerialPort = serialport.SerialPort;
 
 function ElectronBot( port , jsfile ){
@@ -28,8 +30,11 @@ function ElectronBot( port , jsfile ){
     this.ready = false;
     this.process = null;
     this.dispatcher = null;
-    this.reconnect = false;    
+    this.reconnect = false;
+    this.type = ElectronBot.BOARD_TYPES.UNKOWN;  
     this.status = 'offline';
+
+
     var thisBot = this;
     
     
@@ -56,7 +61,9 @@ function ElectronBot( port , jsfile ){
                 thisBot.disconnect();                
                 break;
             case 'board-ready':
+                console.log( 'board type: ' + JSON.stringify(data));
                 thisBot.ready = true;
+                thisBot.type = data.type;
                 thisBot.reconnectAttemptsRemaining = MAX_RECONNECT_ATTEMPTS;                                
                 console.log('ebot emitted ready!');
                 thisBot.emit('ready');
@@ -143,12 +150,17 @@ function ElectronBot( port , jsfile ){
 };
 util.inherits(ElectronBot, EventEmitter);
 
+ElectronBot.BOARD_TYPES = {
+        UNKNOWN: 'unknown',
+        MBOT: 'mbot',
+        UNO: 'uno',
+        DCCDUINO_NANO: 'dccduino_nano'        
+}
 
 function ElectronBotSlave(){
     EventEmitter.call(this);        
     this.board = null;
     var ebot = this;
-    this.board = null;
 
     var currTick = 0;
     var lastTick = -1;
@@ -161,29 +173,26 @@ function ElectronBotSlave(){
     ipcRenderer.on('connect', function(event, id, portname) {
         document.title = portname;
         myId = id;   
-        var port = new SerialPort( portname ); 
+        //var port = new SerialPort( portname ); 
         var buffer = null;
                 
         connectToBoardIfFound()                
                               
-        function connectToBoardIfFound(){  
-
-            port.once('open', function(){ 
-                port.write(new Buffer([FIRMATA_GETVERSION_CMD]));
+        function connectToBoardIfFound(){
+            ebot.firmata = new Firmata( portname );
+            var firmataBoard = ebot.firmata;
+            var port = firmataBoard.sp;
+            var boardFound = false;
+            
+            firmataBoard.on('ready', function() {
+                console.log( "firmata: " + JSON.stringify( firmataBoard.firmware ));
+                console.log( "  #pins: " + firmataBoard.pins.length );
+                boardFound = true;
+                connectBoard( port );                            
             });
             
-            port.once('data', function( data ){
-                buffer = data;
-                if( data.length !== 3 || data[0] !== FIRMATA_GETVERSION_CMD ){
-                    console.log('Response from board not as expected. will call now reportBoardNotFound()');          
-                    reportBoardNotFound();                            
-                } else {            
-                    connectBoard();            
-                }
-            });
-
             setTimeout(function(){ 
-                if(buffer === null){ reportBoardNotFound() }
+                if( ! boardFound ){ reportBoardNotFound() }
             },SERIAL_PROBE_TIMEOUT_IN_MS);
     
             port.once('error', function(err){ 
@@ -193,13 +202,12 @@ function ElectronBotSlave(){
             function reportBoardNotFound(){                
                 event.sender.send( myId, 'board-failure', new Error('Board not found on serial port ' + portname) );            
             }
-            
-        }
+                       
+        }                              
 
-        function connectBoard(){
+        function connectBoard( port ){
             
             ebot.board = new five.Board( { port: port , repl: false, debug: false  } );    
-
             ebot.board.on("error", function( err ) {
                 console.log("error: " + util.inspect(err) );
                 if( error === null ){
@@ -209,6 +217,7 @@ function ElectronBotSlave(){
             });
 
             ebot.board.on("ready", function() {
+                console.log("Board is ready!");
                 setTimeout( checkPortOpened, BOARD_WATCHDOG_INTERVAL_IN_MS, port);
                 boardPing = setInterval(function pingBoard(){
                     ebot.board.queryPinState(1, function(value) {
@@ -226,13 +235,37 @@ function ElectronBotSlave(){
                     ipcRenderer.send( myId, 'board-message', data);
                 });
 
-                event.sender.send( myId, 'board-ready' );            
+                event.sender.send( myId, 'board-ready' , { type: getBoardType() } );            
                 ebot.emit('ready');
 
             });
         }
 
     });
+    
+    function getBoardType(){   
+        var BOARD_TYPE = ElectronBot.BOARD_TYPES;     
+        var firmataName = ebot.firmata.firmware.name;
+        var boardPins = ebot.board.pins;
+        var boardType = boardPins.type;
+        var boardPinsLength = boardPins.length;
+        
+        if( firmataName === 'mbotFirmata.ino' ){
+            return BOARD_TYPE.MBOT;
+        }
+        
+        if( boardType === "UNO"){
+            return BOARD_TYPE.UNO;
+        }
+        
+        if( firmataName === 'StandardFirmata.ino' && boardType === "OTHER" && boardPinsLength === 22 ){
+            return BOARD_TYPE.DCCDUINO_NANO;
+        }        
+        
+        return BOARD_TYPE.UNKNOWN;
+                
+    }
+    
 
     function checkPortOpened( port ) {
         if( currTick == lastTick ){
@@ -241,7 +274,7 @@ function ElectronBotSlave(){
             clearInterval( boardPing );
             ipcRenderer.send( myId, 'board-disconnected', new Error('board disconnected'));
         } else {
-            console.log("TICKS: " + currTick ); 
+            //console.log("TICKS: " + currTick ); 
         }
         lastTick = currTick;                
         setTimeout( checkPortOpened ,BOARD_WATCHDOG_INTERVAL_IN_MS, port);

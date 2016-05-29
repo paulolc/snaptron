@@ -9,6 +9,7 @@ const ipcRenderer = require('electron').ipcRenderer;
 const five = require("johnny-five");
 const fs = require('fs');
 const Firmata = require('firmata');
+const merge = require('merge');
 var serialport = require("serialport");
 
 
@@ -20,6 +21,36 @@ const BOARD_PING_PERIOD_IN_MS = 3000;
 const BOARD_WATCHDOG_INTERVAL_IN_MS = 4000;
 
 var SerialPort = serialport.SerialPort;
+
+
+function FirmataBoardProxy( ebot, boardData ){
+    this.ebot = ebot;
+    for( prop in boardData ){
+        this[prop] = boardData[ prop ];
+    }
+    
+    this.pinMode = function (pin, val){        
+        ebot.dispatcher.send( 'command', { command: 'pinMode' , parameters: { pin: pin, val: val } } );
+    }
+    
+    this.digitalWrite = function(pin, val){    
+        ebot.dispatcher.send( 'command', { command: 'digitalWrite' , parameters: { pin: pin, val: val } } );
+    }   
+     
+    this.servoWrite = function(pin, numericValue){    
+        ebot.dispatcher.send( 'command', { command: 'servoWrite' , parameters: { pin: pin, val: numericValue } } );
+    }   
+    
+    this.digitalRead = function(pin, callback){         //function(value) { this.pins[pin].value = value });
+        //ebot.dispatcher.send( 'command', { command: 'digitalRead' , parameters: { pin: pin, val: val } } );
+    }
+    
+    this.analogWrite = function(pin, val){
+        ebot.dispatcher.send( 'command', { command: 'analogWrite' , parameters: { pin: pin, val: val } } );        
+    }
+    
+}
+
 
 function ElectronBot( port , jsfile ){
     EventEmitter.call(this);
@@ -61,9 +92,9 @@ function ElectronBot( port , jsfile ){
                 thisBot.disconnect();                
                 break;
             case 'board-ready':
-                console.log( 'board type: ' + JSON.stringify(data));
+                console.log( 'board data: ' + JSON.stringify(data));
                 thisBot.ready = true;
-                thisBot.type = data.type;
+                thisBot.board = new FirmataBoardProxy( thisBot, data );
                 thisBot.reconnectAttemptsRemaining = MAX_RECONNECT_ATTEMPTS;                                
                 console.log('ebot emitted ready!');
                 thisBot.emit('ready');
@@ -88,13 +119,13 @@ function ElectronBot( port , jsfile ){
     this.disconnect = function (){
         this.ready = false;
         this.setStatus( 'disconnected' );
-        if( this.process ){
+        if( this.process ){        
+ //           this.reconnect = false;  
             this.process.destroy();
         }
     }
 
     this.connect = function (){
-        //console.log("connecting...");        
         if( thisBot.process === null  ){
             forkBot( thisBot.jsfile );
         }
@@ -208,6 +239,7 @@ function ElectronBotSlave(){
         function connectBoard( port ){
             
             ebot.board = new five.Board( { port: port , repl: false, debug: false  } );    
+            
             ebot.board.on("error", function( err ) {
                 console.log("error: " + util.inspect(err) );
                 if( error === null ){
@@ -235,7 +267,15 @@ function ElectronBotSlave(){
                     ipcRenderer.send( myId, 'board-message', data);
                 });
 
-                event.sender.send( myId, 'board-ready' , { type: getBoardType() } );            
+                event.sender.send( myId, 'board-ready' , { 
+                    type: getBoardType(), 
+                    pins: ebot.firmata.pins , 
+                    analogPins: ebot.firmata.analogPins , 
+                    MODES: ebot.firmata.MODES,
+                    HIGH: ebot.firmata.HIGH,
+                    LOW: ebot.firmata.LOW
+                } );       
+                     
                 ebot.emit('ready');
 
             });

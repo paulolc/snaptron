@@ -112,7 +112,7 @@ function getBoardOfSprite( sprite ) {
     return GLOBALS.ebots[ sprite.variables.getVar('ebot-port') ];
 }
  
-function disconnectAllBoards(){
+function disconnectAllBoards(){    
     var ebotPorts = Object.keys( GLOBALS.ebots )
     ebotPorts.forEach( function( ebotPort ){
         var ebotIdx = ebotPort;
@@ -132,6 +132,9 @@ function syncEbotsWithSprites(){
             var port = getSpriteVar( sprite, 'ebot-port'); 
             if( port ){            
                 spritesByPort[ port ] = sprite;
+                if( ! GLOBALS.ebots[ port ] ){
+                    setSpriteStatus( sprite , 'offline' );
+                }
             }
         });
         
@@ -142,15 +145,15 @@ function syncEbotsWithSprites(){
             
             if( ebot.status !== 'offline' ){
                 ebot.reconnect = true;
-                ebotsByPort[ ebotIdx ] = ebot;
-                
+                ebotsByPort[ ebotIdx ] = ebot;                
             }    
 
             if( sprite ){        
-                if( sprite.lastStatus !== ebot.status ){
+                if( sprite.lastStatus !== ebot.status ){                    
                     console.log( 'switching to costume: ' + ebot.status );
                     sprite.lastStatus = ( sprite.getCostumeIdx() !== 0 ? ebot.status : "" );               
                     setSpriteStatus( sprite , ebot.status );       
+                    sprite.ebot = ebot;
                 }
             } else {
                 if( ebot.status !== 'offline' ){
@@ -159,8 +162,10 @@ function syncEbotsWithSprites(){
                         sprite.variables.setVar( VARNAME_BY_SENSOR[ data.sensor ] , data.value);
                     });
                     sprite = ide_morph.createNewSprite( ebot.port );     
-                    addVars(sprite, ['ebot-port', LIGHT_SENSOR_VARNAME, PROXIMITY_SENSOR_VARNAME, BUTTON_SENSOR_VARNAME ])
+                    sprite.ebot = ebot;
+                    addVars(sprite, ['ebot-port', 'ebot-type', LIGHT_SENSOR_VARNAME, PROXIMITY_SENSOR_VARNAME, BUTTON_SENSOR_VARNAME ])
                     sprite.variables.setVar( 'ebot-port', ebot.port  );
+                    sprite.variables.setVar( 'ebot-type', ebot.board.type  );
                     sprite.lastStatus = "";
                     setSpriteStatus( sprite , ebot.status );       
                 }
@@ -206,8 +211,8 @@ function syncEbotsWithSprites(){
         }
         
         function getCostumeBySpriteStatus( sprite, status ){
-            var boardOfSprite = getBoardOfSprite( sprite );
-            var boardType = ( boardOfSprite !== null ? boardOfSprite.type : "default" );
+            var type = getSpriteVar( sprite, 'ebot-type'); 
+            var boardType = ( type === null ? "default" : type );
             return BOARDS_INFO[ boardType ].costumes[ status ].costume;
         }
         
@@ -217,7 +222,7 @@ function syncEbotsWithSprites(){
 function overrideSnapFunctions(){
         
     SpriteMorph.prototype.sendCommand = function( command ){
-        console.log( "Sending command '"+command+"' to: '" + this.name + "'");
+        console.log( "Sending command '" + JSON.stringify( command ) + "' to: '" + this.name + "'");
         window.ebot.ebots[ this.name ].dispatcher.send( 'command', command );
     }    
     

@@ -6,6 +6,7 @@
   "dependencies": {
     "electron-squirrel-startup": "1.0.0",
     "johnny-five": "^0.9.19",
+    "merge": "^1.2.0",
     "node-localstorage": "^1.1.2",
     "node-pixel": "^0.6.1",
     "serialport": "^3.1.2"

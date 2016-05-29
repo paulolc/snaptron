@@ -1,5 +1,6 @@
 const five = require('johnny-five');
 const pixel = require("node-pixel");
+console.log('Executing mbot.js for ebot: ' + JSON.stringify(ebot,null, '\t'));
 
 var buttonSensor = null;
 var proximitySensor = null;
@@ -143,8 +144,16 @@ ebot.on('ready', function(){
 
 });
 
+
 ebot.on('command', function( command, parameters ){
+    console.log("EXECUTING command: " + command + " parameters: " + JSON.stringify(parameters) );
     switch( command ){
+        case 'pinMode':
+        case 'digitalWrite':
+        case 'servoWrite':
+        case 'analogWrite':
+            ebot.firmata[ command ].apply( ebot.firmata, [ parameters.pin, parameters.val ] );
+            break;        
         case 'move':
             wheels.move( parameters );
             break;
@@ -164,4 +173,12 @@ ebot.on('command', function( command, parameters ){
             break;
     }
     
+    
+    
 });
+
+
+
+
+
+

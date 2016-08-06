@@ -6,13 +6,25 @@ const MenuItem = remote.MenuItem;
 var tempStorage = null;
 var mainWindow = remote.getCurrentWindow();
 const ipcRenderer = require('electron').ipcRenderer;
+
+
+//\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 var ebot = require('./ebot');
 var GLOBALS = {
     ebots: ebot.ebots
 };
+/////////////////////////////////////////////////////////////////////////////////////////////////
+
+
 
 log('Starting snaptron controller...');
 
+const LAST_OPENED_PROJECT_NAME = mainWindow.LAST_OPENED_PROJECT_NAME;
+const SETTINGS_STORAGE_ID = 'settings';
+const USER_SETTINGS_FILENAME = '.snaptron';
+
+
+//\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 const PROXIMITY_SENSOR_VARNAME = 'sensor de proximidade';
 const LIGHT_SENSOR_VARNAME='sensor de luz';
 const BUTTON_SENSOR_VARNAME = 'botão';
@@ -23,9 +35,6 @@ const VARNAME_BY_SENSOR = {
 };
 
 const SPRITES_EBOTS_SYNC_PERIOD_IN_MS = 2000;
-const LAST_OPENED_PROJECT_NAME = mainWindow.LAST_OPENED_PROJECT_NAME;
-const SETTINGS_STORAGE_ID = 'settings';
-const USER_SETTINGS_FILENAME = '.snaptron';
 
 const BOARD_COSTUMES_DIR = '..';
 
@@ -58,6 +67,9 @@ var BOARDS_INFO = {
         }        
     }
 }
+/////////////////////////////////////////////////////////////////////////////////////////////////
+
+
 
 if (typeof localStorage === "undefined" || localStorage === null) {
     var LocalStorage = require('node-localstorage').LocalStorage;
@@ -77,16 +89,25 @@ var world = new WorldMorph(document.getElementById('world'));
 var ide_morph = new IDE_Morph();
 ide_morph.logoURL = 'icons/snaptron32x32.png';
 
+//\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 ide_morph.loadAllCostumes( function() {
     GLOBALS.syncEbotsWithSpritesInterval = setInterval( syncEbotsWithSprites, SPRITES_EBOTS_SYNC_PERIOD_IN_MS);
 });
+/////////////////////////////////////////////////////////////////////////////////////////////////
+
+
 
 mainWindow.on( 'close', function(e) {
   log('LAST_OPENED_PROJECT_NAME: ' + LAST_OPENED_PROJECT_NAME);
   ide_morph.globalVariables.vars.projectName = new Variable( ide_morph.projectName );
+
+//\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
   disconnectAllBoards();
   clearInterval( GLOBALS.syncEbotsWithSpritesInterval);
   syncEbotsWithSprites();
+/////////////////////////////////////////////////////////////////////////////////////////////////
+
+
   ide_morph.rawSaveProject(LAST_OPENED_PROJECT_NAME);  
 });
 
@@ -108,6 +129,10 @@ function log( text ){
         ipcRenderer.send('snaptron-logger', text );
 }
 
+
+//\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+
 function getBoardOfSprite( sprite ) {
     return GLOBALS.ebots[ sprite.variables.getVar('ebot-port') ];
 }
@@ -124,6 +149,7 @@ function disconnectAllBoards(){
  
  
 function syncEbotsWithSprites(){
+
         var ebotsByPort = {};
         var spritesByPort = {};
         var ebotPorts = Object.keys( GLOBALS.ebots );
@@ -217,28 +243,47 @@ function syncEbotsWithSprites(){
         }
         
 }
+/////////////////////////////////////////////////////////////////////////////////////////////////
 
 
 function overrideSnapFunctions(){
-        
+
+    IDE_Morph.prototype.loadImg = function( url, callback ){
+        var img = new Image();
+        img.onload = function () {
+            var canvas = newCanvas(new Point(img.width, img.height));
+            canvas.getContext('2d').drawImage(img, 0, 0);
+            callback( canvas );
+        };                
+        img.src = url;
+    }
+
+
+//\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     SpriteMorph.prototype.sendCommand = function( command ){
         console.log( "Sending command '" + JSON.stringify( command ) + "' to: '" + this.name + "'");
         window.ebot.ebots[ this.name ].dispatcher.send( 'command', command );
     }    
+//////////////////////////////////////////////////////////////////////////////////////////////////////
     
     var overridenOpenProjectFunction = SnapSerializer.prototype.openProject;
         
+//\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     function loadEbotBlocks( ide ){
         ide.getURL( 'ebot-blocks.xml', function( err, responseText ) {
             ide.droppedText( responseText, "ebot-blocks" );
         });        
     }
+/////////////////////////////////////////////////////////////////////////////////////////////////
         
     SnapSerializer.prototype.openProject = function( project, ide ){
 
         recoverOriginalProjectName();
         overridenOpenProjectFunction( project, ide);
+
+//\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
         loadEbotBlocks(ide);
+/////////////////////////////////////////////////////////////////////////////////////////////////
 
         function recoverOriginalProjectName(){
             var projectNameVar = project.globalVariables.vars.projectName;  
@@ -247,6 +292,8 @@ function overrideSnapFunctions(){
             }
         }
     }
+
+//\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 
     IDE_Morph.prototype.connectMbot = function () {
         var msg;
@@ -309,13 +356,22 @@ function overrideSnapFunctions(){
         
         return sprite;
     };
-       
-    var overridenNewProjectFunction = IDE_Morph.prototype.newProject;
-        
+/////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+    var overridenNewProjectFunction = IDE_Morph.prototype.newProject;        
     IDE_Morph.prototype.newProject = function(){
+        
+//\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
         disconnectAllBoards();
+/////////////////////////////////////////////////////////////////////////////////////////////////
+
         overridenNewProjectFunction.bind(this)();
+
+//\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
         loadEbotBlocks(this);
+/////////////////////////////////////////////////////////////////////////////////////////////////
+
     }    
 
     var overridenCreateSpriteBar = IDE_Morph.prototype.createSpriteBar;
@@ -351,7 +407,7 @@ function overrideSnapFunctions(){
     IDE_Morph.prototype.resourceURL = function (folder, file) {
         // Give a path a file in subfolders.
         // Method can be easily overridden if running in a custom location.
-        var resourceURL = 'snap/' + folder + '/' + file;
+        var resourceURL = 'snap/' + folder + ( file ? '/' + file : '' );
         console.log( "resourceURL: " + resourceURL);
         return resourceURL;
     };

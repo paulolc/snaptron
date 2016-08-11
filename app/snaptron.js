@@ -248,6 +248,8 @@ function syncEbotsWithSprites(){
 
 function overrideSnapFunctions(){
 
+
+    // INJECT( REPLACE, 'IDE_Morph', 'loadImg' );
     IDE_Morph.prototype.loadImg = function( url, callback ){
         var img = new Image();
         img.onload = function () {
@@ -266,24 +268,29 @@ function overrideSnapFunctions(){
     }    
 //////////////////////////////////////////////////////////////////////////////////////////////////////
     
+
+    // INJECT( BEFORE, 'IDE_Morph', 'openProject', recoverOriginalProjectName );
+    // INJECT( AFTER , 'IDE_Morph', 'openProject', loadEbotBlocks );
     var overridenOpenProjectFunction = SnapSerializer.prototype.openProject;
         
-//\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+    //\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     function loadEbotBlocks( ide ){
         ide.getURL( 'ebot-blocks.xml', function( err, responseText ) {
             ide.droppedText( responseText, "ebot-blocks" );
         });        
     }
-/////////////////////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////////////////////////
         
     SnapSerializer.prototype.openProject = function( project, ide ){
 
+        //\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
         recoverOriginalProjectName();
+        /////////////////////////////////////////////////////////////////////////////////////////////////
+
         overridenOpenProjectFunction( project, ide);
 
-//\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+        //\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
         loadEbotBlocks(ide);
-/////////////////////////////////////////////////////////////////////////////////////////////////
 
         function recoverOriginalProjectName(){
             var projectNameVar = project.globalVariables.vars.projectName;  
@@ -291,9 +298,12 @@ function overrideSnapFunctions(){
                 project.name =  projectNameVar.value ;                    
             }
         }
+        /////////////////////////////////////////////////////////////////////////////////////////////////
     }
 
-//\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+
+    //\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 
     IDE_Morph.prototype.connectMbot = function () {
         var msg;
@@ -356,24 +366,27 @@ function overrideSnapFunctions(){
         
         return sprite;
     };
-/////////////////////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////////////////////////
 
 
+    // INJECT( BEFORE, 'IDE_Morph', 'newProject', disconnectAllBoards );
+    // INJECT( AFTER , 'IDE_Morph', 'newProject', loadEbotBlocks );
     var overridenNewProjectFunction = IDE_Morph.prototype.newProject;        
     IDE_Morph.prototype.newProject = function(){
         
-//\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+        //\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
         disconnectAllBoards();
-/////////////////////////////////////////////////////////////////////////////////////////////////
+        /////////////////////////////////////////////////////////////////////////////////////////////////
 
         overridenNewProjectFunction.bind(this)();
 
-//\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+        //\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
         loadEbotBlocks(this);
-/////////////////////////////////////////////////////////////////////////////////////////////////
+        /////////////////////////////////////////////////////////////////////////////////////////////////
 
     }    
 
+    // INJECT( AFTER, 'IDE_Morph', 'createSpriteBar', createSpriteBarStageHandle );
     var overridenCreateSpriteBar = IDE_Morph.prototype.createSpriteBar;
     IDE_Morph.prototype.createSpriteBar = function () {
         overridenCreateSpriteBar.bind(this)();            
@@ -383,6 +396,7 @@ function overrideSnapFunctions(){
     }
       
 
+    // INJECT( REPLACE, 'IDE_Morph', 'saveSetting' );
     IDE_Morph.prototype.saveSetting = function (key, value) {
         if (localStorage) {
             localStorage['-snap-setting-' + key] = value;
@@ -390,6 +404,7 @@ function overrideSnapFunctions(){
         saveStorage()
     };
 
+    // INJECT( REPLACE, 'IDE_Morph', 'getSetting' );
     IDE_Morph.prototype.getSetting = function (key) {
         if (localStorage) {
             return localStorage['-snap-setting-' + key];
@@ -397,6 +412,7 @@ function overrideSnapFunctions(){
         return null;
     };
 
+    // INJECT( REPLACE, 'IDE_Morph', 'removeSetting' );
     IDE_Morph.prototype.removeSetting = function (key) {
         if (localStorage) {
             delete localStorage['-snap-setting-' + key];
@@ -404,6 +420,7 @@ function overrideSnapFunctions(){
         saveStorage();
     };
 
+    // INJECT( REPLACE, 'IDE_Morph', 'resourceURL' );
     IDE_Morph.prototype.resourceURL = function (folder, file) {
         // Give a path a file in subfolders.
         // Method can be easily overridden if running in a custom location.
